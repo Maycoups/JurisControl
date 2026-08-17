@@ -1,0 +1,9 @@
+# O Vercel só precisa do index.html (site estático puro, sem build).
+# Tudo abaixo é específico do app desktop (Electron) ou do backend (Supabase CLI),
+# e não deve ser enviado para o deploy web:
+main.js
+preload.js
+package.json
+package-lock.json
+node_modules/
+supabase/
