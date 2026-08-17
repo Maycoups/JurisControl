@@ -22,6 +22,8 @@
 // automaticamente para dados de demonstração — o front-end é avisado em ambos os casos
 // via `simulado` e `mensagem`.
 
+import { verificarUsuarioAutenticado, respostaNaoAutenticado } from "../_shared/auth.ts";
+
 const CORS_HEADERS: Record<string, string> = {
   "Access-Control-Allow-Origin": "*",
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
@@ -40,6 +42,11 @@ Deno.serve(async (req: Request) => {
   if (req.method !== "POST") {
     return jsonResponse({ error: "Método não suportado. Use POST." }, 405);
   }
+
+  // Exige usuário logado no JurisControl — evita que a função vire um proxy público
+  // para o DJEN (uso indevido/abuso por quem descobrir a URL).
+  const usuario = await verificarUsuarioAutenticado(req);
+  if (!usuario) return respostaNaoAutenticado(CORS_HEADERS);
 
   let body: { oab?: string; uf?: string };
   try {

@@ -21,6 +21,8 @@
 // A chamada real ao DataJud é feita aqui (server-side), nunca direto do front-end —
 // evita bloqueio de CORS numa requisição com header Authorization custom.
 
+import { verificarUsuarioAutenticado, respostaNaoAutenticado } from "../_shared/auth.ts";
+
 const CORS_HEADERS: Record<string, string> = {
   "Access-Control-Allow-Origin": "*",
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
@@ -55,6 +57,11 @@ Deno.serve(async (req: Request) => {
   if (req.method !== "POST") {
     return jsonResponse({ error: "Método não suportado. Use POST." }, 405);
   }
+
+  // Exige usuário logado no JurisControl — evita virar proxy público para o
+  // DataJud (uso indevido por quem descobrir a URL).
+  const usuario = await verificarUsuarioAutenticado(req);
+  if (!usuario) return respostaNaoAutenticado(CORS_HEADERS);
 
   let body: { numeroCNJ?: string; apiKey?: string };
   try {

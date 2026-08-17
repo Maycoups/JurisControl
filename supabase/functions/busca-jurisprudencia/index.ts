@@ -18,6 +18,8 @@
 // cai para o eproc do TJRJ; se os dois falharem, cai para dados de demonstração —
 // o front-end é avisado via `simulado`/`mensagem` em qualquer um dos casos.
 
+import { verificarUsuarioAutenticado, respostaNaoAutenticado } from "../_shared/auth.ts";
+
 const CORS_HEADERS: Record<string, string> = {
   "Access-Control-Allow-Origin": "*",
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
@@ -34,6 +36,11 @@ Deno.serve(async (req: Request) => {
   if (req.method !== "POST") {
     return jsonResponse({ error: "Método não suportado. Use POST." }, 405);
   }
+
+  // Exige usuário logado no JurisControl — evita virar proxy público para
+  // LexML/TJRJ (uso indevido por quem descobrir a URL).
+  const usuario = await verificarUsuarioAutenticado(req);
+  if (!usuario) return respostaNaoAutenticado(CORS_HEADERS);
 
   let body: { termo?: string; uf?: string };
   try {

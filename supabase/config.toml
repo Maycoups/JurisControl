@@ -415,7 +415,7 @@ enabled = true
 
 [functions.busca-tjrj]
 enabled = true
-verify_jwt = false
+verify_jwt = true
 import_map = "./functions/busca-tjrj/deno.json"
 # Uncomment to specify a custom file path to the entrypoint.
 # Supported file extensions are: .ts, .js, .mjs, .jsx, .tsx
@@ -426,18 +426,18 @@ entrypoint = "./functions/busca-tjrj/index.ts"
 
 [functions.busca-jurisprudencia]
 enabled = true
-verify_jwt = false
+verify_jwt = true
 import_map = "./functions/busca-jurisprudencia/deno.json"
 entrypoint = "./functions/busca-jurisprudencia/index.ts"
 
 [functions.criar-peca-ia]
 enabled = true
-verify_jwt = false
+verify_jwt = true
 import_map = "./functions/criar-peca-ia/deno.json"
 entrypoint = "./functions/criar-peca-ia/index.ts"
 
 [functions.datajud-busca]
 enabled = true
-verify_jwt = false
+verify_jwt = true
 import_map = "./functions/datajud-busca/deno.json"
 entrypoint = "./functions/datajud-busca/index.ts"

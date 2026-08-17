@@ -12,10 +12,21 @@
 //   2. A secret ANTHROPIC_API_KEY configurada no projeto Supabase:
 //        supabase secrets set ANTHROPIC_API_KEY=sk-ant-...
 //
-// Modelo: claude-opus-5. Todo texto gerado é sempre uma SUGESTÃO/MINUTA — precisa de
-// revisão humana antes de qualquer uso real, e a função deixa isso explícito na resposta.
+// Modelo: claude-sonnet-5 por padrão — bom equilíbrio entre qualidade e custo para
+// redação jurídica estruturada (o Opus custa sensivelmente mais por token; para uso
+// pontual por advogado(a) autônomo(a) o Sonnet já entrega qualidade alta). Quem
+// quiser mais qualidade (ao custo de mais $) pode enviar `modelo: "claude-opus-5"`
+// no corpo da requisição; quem quiser o mais barato possível pode enviar
+// `modelo: "claude-haiku-4-5-20251001"`. Todo texto gerado é sempre uma
+// SUGESTÃO/MINUTA — precisa de revisão humana antes de qualquer uso real, e a
+// função deixa isso explícito na resposta.
+//
+// Esta função exige um usuário autenticado do JurisControl (ver _shared/auth.ts) —
+// sem isso, qualquer pessoa que descobrisse a URL poderia gastar a chave da
+// Anthropic configurada no servidor.
 
 import Anthropic from "npm:@anthropic-ai/sdk";
+import { verificarUsuarioAutenticado, respostaNaoAutenticado } from "../_shared/auth.ts";
 
 const CORS_HEADERS: Record<string, string> = {
   "Access-Control-Allow-Origin": "*",
@@ -23,7 +34,8 @@ const CORS_HEADERS: Record<string, string> = {
   "Access-Control-Allow-Methods": "POST, OPTIONS",
 };
 
-const MODELO = "claude-opus-5";
+const MODELO_PADRAO = "claude-sonnet-5";
+const MODELOS_PERMITIDOS = ["claude-opus-5", "claude-sonnet-5", "claude-haiku-4-5-20251001"];
 
 const TAREFAS_VALIDAS = ["minuta", "resumo", "proximo_passo"] as const;
 type Tarefa = (typeof TAREFAS_VALIDAS)[number];
@@ -51,6 +63,9 @@ Deno.serve(async (req: Request) => {
     return jsonResponse({ error: "Método não suportado. Use POST." }, 405);
   }
 
+  const usuario = await verificarUsuarioAutenticado(req);
+  if (!usuario) return respostaNaoAutenticado(CORS_HEADERS);
+
   let body: {
     tarefa?: string;
     contexto?: {
@@ -60,12 +75,15 @@ Deno.serve(async (req: Request) => {
       instrucoes?: string;
     };
     apiKey?: string;
+    modelo?: string;
   };
   try {
     body = await req.json();
   } catch {
     return jsonResponse({ error: "Corpo da requisição inválido (esperado JSON)." }, 400);
   }
+
+  const modelo = MODELOS_PERMITIDOS.includes(body.modelo ?? "") ? (body.modelo as string) : MODELO_PADRAO;
 
   const apiKey = (body.apiKey && body.apiKey.trim()) || Deno.env.get("ANTHROPIC_API_KEY");
   if (!apiKey) {
@@ -101,8 +119,8 @@ Deno.serve(async (req: Request) => {
   try {
     const anthropic = new Anthropic({ apiKey });
     const mensagem = await anthropic.messages.create({
-      model: MODELO,
-      max_tokens: 8000,
+      model: modelo,
+      max_tokens: 4000, // ~3000 palavras, suficiente para a maioria das peças; reduz custo por chamada
       system: SYSTEM_PROMPT,
       messages: [{ role: "user", content: userPrompt }],
     });
@@ -125,7 +143,7 @@ Deno.serve(async (req: Request) => {
     return jsonResponse({
       texto: textoGerado,
       tarefa,
-      modelo: MODELO,
+      modelo,
       tokensUsados: {
         entrada: mensagem.usage.input_tokens,
         saida: mensagem.usage.output_tokens,
