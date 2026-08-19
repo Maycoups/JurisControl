@@ -93,16 +93,56 @@
             console.error('Erro ao iniciar o cliente Supabase (integrações ficarão indisponíveis):', e);
         }
 
-        // --- Credenciais locais seguras (Anthropic, DataJud) ---
-        // Guardadas fora do projeto, criptografadas via safeStorage do Electron
-        // (ver preload.js / main.js). Nunca ficam em texto puro nem no código-fonte.
+        // --- Credenciais locais (chaves de IA "traga a sua", DataJud) ---
+        // No app instalado (Electron), ficam criptografadas via safeStorage, fora
+        // da pasta do projeto (ver preload.js / main.js) — nunca em texto puro,
+        // nunca no código-fonte. Na versão web não existe esse armazenamento
+        // criptografado do sistema operacional, então caímos para o
+        // localStorage do próprio navegador (funciona, mas não é criptografado —
+        // por isso a interface avisa quando está nesse modo). Em qualquer um dos
+        // dois casos, a chave só sai do dispositivo na hora de usar (uma
+        // chamada) e nunca fica salva no nosso servidor.
+        const PREFIXO_SECRET_LOCAL = 'jc_secret_';
+
+        async function armazenamentoSeguroDisponivel() {
+            if (!window.jcSecrets) return false;
+            try { return await window.jcSecrets.disponivel(); } catch { return false; }
+        }
+
         async function getSecret(nome) {
-            if (!window.jcSecrets) return null;
+            if (window.jcSecrets) {
+                try {
+                    const valor = await window.jcSecrets.get(nome);
+                    if (valor) return valor;
+                } catch { /* cai pro fallback abaixo */ }
+            }
             try {
-                return await window.jcSecrets.get(nome);
+                return localStorage.getItem(PREFIXO_SECRET_LOCAL + nome) || null;
             } catch {
                 return null;
             }
+        }
+
+        async function setSecret(nome, valor) {
+            if (window.jcSecrets) {
+                try {
+                    const resultado = await window.jcSecrets.set(nome, valor);
+                    if (resultado && resultado.ok) return { ok: true, seguro: true };
+                } catch { /* cai pro fallback abaixo */ }
+            }
+            try {
+                localStorage.setItem(PREFIXO_SECRET_LOCAL + nome, valor);
+                return { ok: true, seguro: false };
+            } catch (e) {
+                return { ok: false, erro: e.message };
+            }
+        }
+
+        async function deleteSecret(nome) {
+            if (window.jcSecrets) {
+                try { await window.jcSecrets.delete(nome); } catch { /* ignora */ }
+            }
+            try { localStorage.removeItem(PREFIXO_SECRET_LOCAL + nome); } catch { /* ignora */ }
         }
 
         const CNJ_REGEX = /^\d{7}-\d{2}\.\d{4}\.\d{1}\.\d{2}\.\d{4}$/;
@@ -806,7 +846,7 @@
                         )}
 
                         {activeTab === 'pecas_ia' && (
-                            <CriacaoPecasIAView clients={clients} processes={processes} supabaseClient={supabaseClient} />
+                            <CriacaoPecasIAView clients={clients} processes={processes} supabaseClient={supabaseClient} session={session} />
                         )}
 
                         {activeTab === 'calculadora' && (
@@ -2311,7 +2351,59 @@ OAB nº ${advogadoOab}`;
             "Outro (descrever nas instruções)",
         ];
 
-        function CriacaoPecasIAView({ clients, processes, supabaseClient }) {
+        // Escolhe qual provedor/chave usar numa chamada de IA: prioriza uma chave
+        // Anthropic conectada pelo usuário, depois uma chave Gemini conectada, e só
+        // por último cai pro plano gratuito (sem apiKey — a function usa o Gemini
+        // da casa e conta na cota mensal).
+        async function resolverProvedorIA() {
+            const [chaveClaude, chaveGemini] = await Promise.all([getSecret('ANTHROPIC_API_KEY'), getSecret('GEMINI_API_KEY')]);
+            if (chaveClaude) return { apiKey: chaveClaude, provedor: 'anthropic' };
+            if (chaveGemini) return { apiKey: chaveGemini, provedor: 'gemini' };
+            return { apiKey: null, provedor: null };
+        }
+
+        // Mostra quantas gerações gratuitas já foram usadas este mês, ou avisa que o
+        // uso é ilimitado quando há uma chave própria conectada. Consulta
+        // uso_ia_gratuita direto (a tabela tem uma policy de leitura só da própria
+        // linha), sem precisar chamar nenhuma function.
+        function UsoIAGratuitaBanner({ supabaseClient, session }) {
+            const [estado, setEstado] = useState(null);
+
+            useEffect(() => {
+                let cancelado = false;
+                (async () => {
+                    const { apiKey } = await resolverProvedorIA();
+                    if (apiKey) {
+                        if (!cancelado) setEstado({ temChavePropria: true });
+                        return;
+                    }
+                    const mes = new Date().toISOString().slice(0, 7);
+                    const { data } = await supabaseClient
+                        .from('uso_ia_gratuita').select('contagem')
+                        .eq('user_id', session.user.id).eq('mes', mes).maybeSingle();
+                    if (!cancelado) setEstado({ temChavePropria: false, usadas: data?.contagem ?? 0 });
+                })();
+                return () => { cancelado = true; };
+            }, [session.user.id]);
+
+            if (!estado) return null;
+            if (estado.temChavePropria) {
+                return (
+                    <div className="p-3 bg-emerald-50 border border-emerald-200 rounded-xl text-xs text-emerald-800 flex items-center gap-2">
+                        <i className="fa-solid fa-infinity"></i> Usando sua própria chave conectada — gerações ilimitadas.
+                    </div>
+                );
+            }
+            const restantes = Math.max(0, 10 - estado.usadas);
+            return (
+                <div className={`p-3 rounded-xl text-xs border flex items-center gap-2 ${restantes === 0 ? 'bg-rose-50 border-rose-200 text-rose-700' : 'bg-amber-50 border-amber-200 text-amber-800'}`}>
+                    <i className="fa-solid fa-gift"></i>
+                    IA gratuita: {estado.usadas} de 10 gerações usadas este mês{restantes === 0 ? ' — conecte sua chave em Configurações para continuar' : ''}.
+                </div>
+            );
+        }
+
+        function CriacaoPecasIAView({ clients, processes, supabaseClient, session }) {
             const [tipoPeca, setTipoPeca] = useState(TIPOS_PECA_IA[0]);
             const [clienteId, setClienteId] = useState('');
             const [processoId, setProcessoId] = useState('');
@@ -2332,7 +2424,7 @@ OAB nº ${advogadoOab}`;
 
                 const clienteSelecionado = clients.find(c => c.id === clienteId);
                 const processoSelecionado = processes.find(p => p.id === processoId);
-                const apiKey = await getSecret('ANTHROPIC_API_KEY');
+                const { apiKey, provedor } = await resolverProvedorIA();
 
                 try {
                     const { data, error } = await supabaseClient.functions.invoke('criar-peca-ia', {
@@ -2345,6 +2437,7 @@ OAB nº ${advogadoOab}`;
                                 processo: processoSelecionado || undefined,
                             },
                             apiKey: apiKey || undefined,
+                            provedor: provedor || undefined,
                         },
                     });
 
@@ -2357,7 +2450,7 @@ OAB nº ${advogadoOab}`;
                     setResultado(data);
                 } catch (err) {
                     console.error('Erro ao gerar peça com IA:', err);
-                    setErro('Erro ao gerar a peça. Verifique se a Edge Function "criar-peca-ia" está publicada e se a chave da Anthropic foi configurada (aba Configurações).');
+                    setErro('Erro ao gerar a peça. Verifique sua conexão, ou conecte sua própria chave em Configurações se o plano gratuito estiver indisponível.');
                 } finally {
                     setLoading(false);
                 }
@@ -2383,6 +2476,8 @@ OAB nº ${advogadoOab}`;
                         </div>
                         <p className="text-slate-500 text-sm mt-1">Gere minutas de peças jurídicas com IA, usando os dados de clientes e processos já cadastrados. Todo texto gerado precisa de revisão humana antes do uso.</p>
                     </div>
+
+                    <UsoIAGratuitaBanner supabaseClient={supabaseClient} session={session} />
 
                     <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
                         <div className="bg-white p-5 rounded-2xl border border-slate-200 shadow-sm space-y-4">
@@ -2463,12 +2558,13 @@ OAB nº ${advogadoOab}`;
         }
 
         const SECRETS_DISPONIVEIS = [
-            { chave: 'ANTHROPIC_API_KEY', label: 'Chave da API Anthropic (Claude)', ajuda: 'Necessária para a Criação de Peças com IA e o painel de IA dentro dos processos. Gere em console.anthropic.com/settings/keys.' },
+            { chave: 'GEMINI_API_KEY', label: 'Sua chave do Google Gemini (opcional)', ajuda: 'O plano gratuito (10 gerações/mês) já funciona sem configurar nada. Conecte sua própria chave pra ter uso ilimitado, pago diretamente por você ao Google. Gere gratuitamente em aistudio.google.com/apikey.' },
+            { chave: 'ANTHROPIC_API_KEY', label: 'Sua chave da Anthropic / Claude (opcional)', ajuda: 'Use se preferir o Claude em vez do Gemini. Uso ilimitado, pago diretamente por você à Anthropic (nunca pelo JurisControl). Gere em console.anthropic.com/settings/keys.' },
             { chave: 'DATAJUD_API_KEY', label: 'Chave da API DataJud (CNJ)', ajuda: 'Opcional. O app já usa por padrão a chave pública oficial do DataJud (sem cadastro necessário) para buscar movimentações processuais pelo número CNJ. Preencha aqui só se quiser usar uma chave própria diferente.' },
         ];
 
         function ConfiguracoesView({ session, supabaseClient }) {
-            const [disponivel, setDisponivel] = useState(null); // null=carregando
+            const [seguro, setSeguro] = useState(null); // null=carregando | true=safeStorage (Electron) | false=localStorage (navegador)
             const [configuradas, setConfiguradas] = useState([]);
             const [valores, setValores] = useState({});
             const [mostrar, setMostrar] = useState({});
@@ -2492,15 +2588,12 @@ OAB nº ${advogadoOab}`;
             };
 
             const carregar = async () => {
-                if (!window.jcSecrets) { setDisponivel(false); return; }
-                try {
-                    const disp = await window.jcSecrets.disponivel();
-                    setDisponivel(disp);
-                    const lista = await window.jcSecrets.list();
-                    setConfiguradas(lista);
-                } catch {
-                    setDisponivel(false);
+                setSeguro(await armazenamentoSeguroDisponivel());
+                const lista = [];
+                for (const s of SECRETS_DISPONIVEIS) {
+                    if (await getSecret(s.chave)) lista.push(s.chave);
                 }
+                setConfiguradas(lista);
             };
 
             useEffect(() => { carregar(); }, []);
@@ -2509,10 +2602,13 @@ OAB nº ${advogadoOab}`;
                 const valor = (valores[chave] || '').trim();
                 if (!valor) { setMensagem({ tipo: 'erro', texto: 'Digite um valor antes de salvar.' }); return; }
                 setSalvando(chave);
-                const resultado = await window.jcSecrets.set(chave, valor);
+                const resultado = await setSecret(chave, valor);
                 setSalvando('');
                 if (resultado && resultado.ok) {
-                    setMensagem({ tipo: 'sucesso', texto: 'Credencial salva com segurança neste computador.' });
+                    setMensagem({
+                        tipo: 'sucesso',
+                        texto: resultado.seguro ? 'Chave salva com segurança neste computador.' : 'Chave salva neste navegador (não criptografada — evite usar num computador compartilhado).',
+                    });
                     setValores(v => ({ ...v, [chave]: '' }));
                     carregar();
                 } else {
@@ -2522,9 +2618,9 @@ OAB nº ${advogadoOab}`;
 
             const remover = async (chave) => {
                 setSalvando(chave);
-                await window.jcSecrets.delete(chave);
+                await deleteSecret(chave);
                 setSalvando('');
-                setMensagem({ tipo: 'sucesso', texto: 'Credencial removida.' });
+                setMensagem({ tipo: 'sucesso', texto: 'Chave removida.' });
                 carregar();
             };
 
@@ -2566,14 +2662,20 @@ OAB nº ${advogadoOab}`;
                     </div>
 
                     <div className="bg-white p-5 rounded-2xl shadow-sm border border-slate-200">
-                        <h3 className="font-bold text-slate-900 text-sm mb-1">Chaves de API (IA e DataJud)</h3>
-                        <p className="text-slate-500 text-xs">Ficam criptografadas neste computador (nunca em texto puro, nunca no código do app) e nunca reaparecem na tela depois de salvas.</p>
+                        <h3 className="font-bold text-slate-900 text-sm mb-1">Conectar sua IA (opcional)</h3>
+                        <p className="text-slate-500 text-xs">Por padrão, a Criação de Peças usa o plano gratuito (Gemini, 10 gerações/mês, sem configurar nada). Conecte sua própria chave aqui só se quiser uso ilimitado — o custo passa a ser cobrado direto de você pelo provedor escolhido, nunca pelo JurisControl. As chaves nunca reaparecem na tela depois de salvas.</p>
                     </div>
 
-                    {disponivel === false && (
-                        <div className="p-4 bg-slate-50 text-slate-600 rounded-xl border border-slate-200 text-sm">
-                            <i className="fa-solid fa-circle-info mr-2"></i>
-                            Você está acessando pela web — o armazenamento local de chaves só existe no aplicativo instalado (Electron). Isso não afeta o uso do sistema: as integrações de IA e DataJud já usam as chaves configuradas pelo administrador no servidor.
+                    {seguro === true && (
+                        <div className="p-4 bg-emerald-50 text-emerald-700 rounded-xl border border-emerald-200 text-sm">
+                            <i className="fa-solid fa-lock mr-2"></i>
+                            Armazenamento seguro deste computador ativo: as chaves ficam criptografadas pela sua conta do Windows.
+                        </div>
+                    )}
+                    {seguro === false && (
+                        <div className="p-4 bg-amber-50 text-amber-800 rounded-xl border border-amber-200 text-sm">
+                            <i className="fa-solid fa-triangle-exclamation mr-2"></i>
+                            Você está acessando pela web: as chaves ficam salvas neste navegador (localStorage), sem criptografia adicional. Evite salvar aqui num computador compartilhado ou público.
                         </div>
                     )}
 
@@ -2602,7 +2704,6 @@ OAB nº ${advogadoOab}`;
                                                 value={valores[s.chave] || ''}
                                                 onChange={e => setValores(v => ({ ...v, [s.chave]: e.target.value }))}
                                                 placeholder={jaConfigurada ? 'Digite um novo valor para substituir' : 'Cole a chave aqui'}
-                                                disabled={disponivel === false}
                                                 className="w-full p-2.5 pr-10 bg-slate-50 border border-slate-200 rounded-xl text-sm font-mono disabled:opacity-50"
                                             />
                                             <button type="button" onClick={() => setMostrar(m => ({ ...m, [s.chave]: !m[s.chave] }))} className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600">
@@ -2611,7 +2712,7 @@ OAB nº ${advogadoOab}`;
                                         </div>
                                         <button
                                             onClick={() => salvar(s.chave)}
-                                            disabled={disponivel === false || salvando === s.chave}
+                                            disabled={salvando === s.chave}
                                             className="px-4 py-2 bg-amber-500 hover:bg-amber-600 text-slate-950 font-semibold rounded-xl text-sm disabled:opacity-50"
                                         >
                                             {salvando === s.chave ? <i className="fa-solid fa-spinner fa-spin"></i> : 'Salvar'}
@@ -2633,8 +2734,8 @@ OAB nº ${advogadoOab}`;
                     </div>
 
                     <div className="bg-slate-50 border border-slate-200 rounded-2xl p-5 text-xs text-slate-500 space-y-1">
-                        <p><strong>Como funciona:</strong> as chaves ficam criptografadas num arquivo fora da pasta do projeto, protegidas pela sua conta do Windows (nunca em texto puro, nunca no HTML/código-fonte). Quando uma função de IA ou DataJud precisa da chave, o app lê o valor decriptado só na hora do uso e o envia diretamente para a função correspondente no Supabase — nunca fica salvo lá.</p>
-                        <p>Alternativa: você também pode configurar via terminal com <code className="font-mono bg-white px-1 rounded border">supabase secrets set NOME=valor</code>. As duas formas funcionam; a chave salva aqui tem prioridade quando presente.</p>
+                        <p><strong>Como funciona:</strong> no aplicativo instalado, as chaves ficam criptografadas num arquivo fora da pasta do projeto, protegidas pela sua conta do Windows; pela web, ficam no navegador (localStorage). Em nenhum caso ficam no HTML/código-fonte. Quando uma peça é gerada, o app lê o valor só na hora do uso e o envia direto pra função correspondente no Supabase — nunca fica salvo lá.</p>
+                        <p>Sem nenhuma chave conectada, a Criação de Peças usa o plano gratuito (Gemini) até o limite mensal por conta.</p>
                     </div>
                 </div>
             );
@@ -2971,9 +3072,9 @@ OAB nº ${advogadoOab}`;
                 setErro('');
                 setCopiado(false);
                 try {
-                    const apiKey = await getSecret('ANTHROPIC_API_KEY');
+                    const { apiKey, provedor } = await resolverProvedorIA();
                     const { data, error } = await supabaseClient.functions.invoke('criar-peca-ia', {
-                        body: { tarefa, contexto: { processo: process, ...extra }, apiKey: apiKey || undefined },
+                        body: { tarefa, contexto: { processo: process, ...extra }, apiKey: apiKey || undefined, provedor: provedor || undefined },
                     });
                     if (error) throw error;
                     if (data && data.error) { setErro(data.error); return; }
