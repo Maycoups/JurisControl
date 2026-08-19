@@ -257,14 +257,40 @@
 
         function LoginView({ supabaseClient }) {
             const [modo, setModo] = useState('entrar'); // 'entrar' | 'criar' | 'recuperar'
+            // O cadastro é feito em etapas (uma pergunta de cada vez) em vez de um
+            // formulário só: fica mais simples de preencher, e nome/OAB já ficam
+            // guardados desde a criação da conta — sem precisar passar por
+            // Configurações depois pra a IA/telas conseguirem chamar o usuário pelo nome.
+            const [passoCadastro, setPassoCadastro] = useState('nome'); // 'nome' | 'oab' | 'credenciais'
+            const [nome, setNome] = useState('');
+            const [oab, setOab] = useState('');
             const [email, setEmail] = useState('');
             const [senha, setSenha] = useState('');
             const [carregando, setCarregando] = useState(false);
             const [mensagem, setMensagem] = useState(null); // { tipo: 'erro'|'sucesso', texto }
 
+            const irParaCriarConta = () => {
+                setModo('criar');
+                setPassoCadastro('nome');
+                setMensagem(null);
+            };
+
             const handleSubmit = async (e) => {
                 e.preventDefault();
                 setMensagem(null);
+
+                // Nos dois primeiros passos do cadastro, o "submit" só avança pra
+                // próxima pergunta — a conta só é criada de fato no passo final.
+                if (modo === 'criar' && passoCadastro === 'nome') {
+                    if (!nome.trim()) { setMensagem({ tipo: 'erro', texto: 'Digite como podemos te chamar.' }); return; }
+                    setPassoCadastro('oab');
+                    return;
+                }
+                if (modo === 'criar' && passoCadastro === 'oab') {
+                    setPassoCadastro('credenciais');
+                    return;
+                }
+
                 setCarregando(true);
                 try {
                     if (modo === 'entrar') {
@@ -291,7 +317,12 @@
                             setCarregando(false);
                             return;
                         }
-                        const { data, error } = await supabaseClient.auth.signUp({ email, password: senha });
+                        // nome/OAB já vão junto na criação da conta (user_metadata), então o
+                        // app já sabe como chamar o usuário desde o primeiro login.
+                        const { data, error } = await supabaseClient.auth.signUp({
+                            email, password: senha,
+                            options: { data: { nome: nome.trim(), oab: oab.trim() } },
+                        });
                         if (error) throw error;
                         if (data.session) {
                             // Projeto sem confirmação de e-mail obrigatória: já entra direto.
@@ -335,7 +366,7 @@
                                     </button>
                                     <button
                                         type="button"
-                                        onClick={() => { setModo('criar'); setMensagem(null); }}
+                                        onClick={irParaCriarConta}
                                         className={`flex-1 py-2 rounded-lg text-sm font-semibold transition ${modo === 'criar' ? 'bg-white shadow-sm text-slate-900' : 'text-slate-500'}`}
                                     >
                                         Criar conta
@@ -346,6 +377,14 @@
                                 <h2 className="font-bold text-slate-900 text-center">Recuperar senha</h2>
                             )}
 
+                            {modo === 'criar' && (
+                                <div className="flex items-center justify-center gap-1.5 pt-1">
+                                    {['nome', 'oab', 'credenciais'].map(p => (
+                                        <span key={p} className={`h-1.5 rounded-full transition-all ${p === passoCadastro ? 'w-6 bg-amber-500' : 'w-1.5 bg-slate-200'}`}></span>
+                                    ))}
+                                </div>
+                            )}
+
                             {mensagem && (
                                 <div className={`p-3 rounded-xl text-xs font-medium ${mensagem.tipo === 'erro' ? 'bg-rose-50 text-rose-700 border border-rose-200' : 'bg-emerald-50 text-emerald-700 border border-emerald-200'}`}>
                                     {mensagem.texto}
@@ -353,18 +392,51 @@
                             )}
 
                             <form onSubmit={handleSubmit} className="space-y-3">
-                                <div>
-                                    <label className="block text-xs font-semibold text-slate-600 mb-1">E-mail</label>
-                                    <input
-                                        required
-                                        type="email"
-                                        value={email}
-                                        onChange={e => setEmail(e.target.value)}
-                                        className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-amber-500"
-                                        placeholder="seuemail@exemplo.com"
-                                    />
-                                </div>
-                                {modo !== 'recuperar' && (
+                                {modo === 'criar' && passoCadastro === 'nome' && (
+                                    <div>
+                                        <label className="block text-sm font-semibold text-slate-800 mb-1">Como podemos te chamar?</label>
+                                        <p className="text-xs text-slate-400 mb-2">Não precisa ser o nome completo — é só pra te chamar pelo nome nas telas e no assistente de IA.</p>
+                                        <input
+                                            autoFocus
+                                            required
+                                            type="text"
+                                            value={nome}
+                                            onChange={e => setNome(e.target.value)}
+                                            className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-amber-500"
+                                            placeholder="Ex: Camila"
+                                        />
+                                    </div>
+                                )}
+
+                                {modo === 'criar' && passoCadastro === 'oab' && (
+                                    <div>
+                                        <label className="block text-sm font-semibold text-slate-800 mb-1">Qual sua OAB?</label>
+                                        <p className="text-xs text-slate-400 mb-2">Opcional — pode deixar em branco e preencher depois em Configurações.</p>
+                                        <input
+                                            autoFocus
+                                            type="text"
+                                            value={oab}
+                                            onChange={e => setOab(e.target.value)}
+                                            className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-amber-500"
+                                            placeholder="Ex: 172090/RJ"
+                                        />
+                                    </div>
+                                )}
+
+                                {modo !== 'criar' && (
+                                    <div>
+                                        <label className="block text-xs font-semibold text-slate-600 mb-1">E-mail</label>
+                                        <input
+                                            required
+                                            type="email"
+                                            value={email}
+                                            onChange={e => setEmail(e.target.value)}
+                                            className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-amber-500"
+                                            placeholder="seuemail@exemplo.com"
+                                        />
+                                    </div>
+                                )}
+                                {modo !== 'recuperar' && modo !== 'criar' && (
                                     <div>
                                         <label className="block text-xs font-semibold text-slate-600 mb-1">Senha</label>
                                         <input
@@ -378,6 +450,35 @@
                                         />
                                     </div>
                                 )}
+                                {modo === 'criar' && passoCadastro === 'credenciais' && (
+                                    <>
+                                        <div>
+                                            <label className="block text-sm font-semibold text-slate-800 mb-1">Agora seu e-mail e senha</label>
+                                            <p className="text-xs text-slate-400 mb-2">Prazer, {nome.trim() || 'advogado(a)'}! Só falta isso pra criar sua conta.</p>
+                                            <input
+                                                autoFocus
+                                                required
+                                                type="email"
+                                                value={email}
+                                                onChange={e => setEmail(e.target.value)}
+                                                className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-amber-500"
+                                                placeholder="seuemail@exemplo.com"
+                                            />
+                                        </div>
+                                        <div>
+                                            <label className="block text-xs font-semibold text-slate-600 mb-1">Senha</label>
+                                            <input
+                                                required
+                                                type="password"
+                                                value={senha}
+                                                onChange={e => setSenha(e.target.value)}
+                                                minLength={6}
+                                                className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-amber-500"
+                                                placeholder="••••••••"
+                                            />
+                                        </div>
+                                    </>
+                                )}
 
                                 <button
                                     type="submit"
@@ -386,10 +487,21 @@
                                 >
                                     {carregando
                                         ? <i className="fa-solid fa-spinner fa-spin"></i>
-                                        : modo === 'entrar' ? 'Entrar' : modo === 'criar' ? 'Criar conta' : 'Enviar link de recuperação'}
+                                        : modo === 'entrar' ? 'Entrar'
+                                        : modo === 'recuperar' ? 'Enviar link de recuperação'
+                                        : passoCadastro === 'credenciais' ? 'Criar conta'
+                                        : 'Continuar'}
                                 </button>
                             </form>
 
+                            {modo === 'criar' && passoCadastro !== 'nome' && (
+                                <button
+                                    onClick={() => { setMensagem(null); setPassoCadastro(passoCadastro === 'credenciais' ? 'oab' : 'nome'); }}
+                                    className="w-full text-center text-xs text-slate-400 hover:text-slate-600"
+                                >
+                                    <i className="fa-solid fa-arrow-left mr-1"></i> Voltar
+                                </button>
+                            )}
                             {modo === 'entrar' && (
                                 <button onClick={() => { setModo('recuperar'); setMensagem(null); }} className="w-full text-center text-xs text-slate-400 hover:text-slate-600">
                                     Esqueci minha senha
@@ -418,6 +530,7 @@
             const [clients, setClients] = useState([]);
             const [processes, setProcesses] = useState([]);
             const [financials, setFinancials] = useState([]);
+            const [tribunaisConhecimento, setTribunaisConhecimento] = useState([]);
             const [dadosCarregados, setDadosCarregados] = useState(false);
             const [erroCarregamento, setErroCarregamento] = useState(null);
             const [alertas, setAlertas] = useState(() => {
@@ -445,13 +558,14 @@
                 async function carregarDados() {
                     setDadosCarregados(false);
                     setErroCarregamento(null);
-                    const [clientesRes, processosRes, financeiroRes] = await Promise.all([
+                    const [clientesRes, processosRes, financeiroRes, tribunaisRes] = await Promise.all([
                         supabaseClient.from('clients').select('data').eq('user_id', userId),
                         supabaseClient.from('processes').select('data').eq('user_id', userId),
                         supabaseClient.from('financials').select('data').eq('user_id', userId),
+                        supabaseClient.from('tribunais_conhecimento').select('data').eq('user_id', userId),
                     ]);
                     if (cancelado) return;
-                    const erro = clientesRes.error || processosRes.error || financeiroRes.error;
+                    const erro = clientesRes.error || processosRes.error || financeiroRes.error || tribunaisRes.error;
                     if (erro) {
                         console.error('Erro ao carregar dados do Supabase:', erro);
                         setErroCarregamento(erro.message || 'Falha ao carregar seus dados.');
@@ -459,6 +573,7 @@
                     setClients((clientesRes.data || []).map(r => r.data));
                     setProcesses((processosRes.data || []).map(r => r.data));
                     setFinancials((financeiroRes.data || []).map(r => r.data));
+                    setTribunaisConhecimento((tribunaisRes.data || []).map(r => r.data));
                     setDadosCarregados(true);
                 }
                 carregarDados();
@@ -489,6 +604,34 @@
                     console.error(`Erro ao sincronizar com ${tabela}:`, error);
                     showNotification(`Aviso: alteração não sincronizada com a nuvem (${error.message}).`);
                 }
+            };
+
+            const removerDoSupabase = async (tabela, id) => {
+                const { error } = await supabaseClient.from(tabela).delete().eq('id', id);
+                if (error) {
+                    console.error(`Erro ao remover de ${tabela}:`, error);
+                    showNotification(`Aviso: remoção não sincronizada com a nuvem (${error.message}).`);
+                }
+            };
+
+            // Base de conhecimento de tribunais/varas — anotações livres do(a) advogado(a)
+            const handleSalvarTribunal = (registro) => {
+                const obj = registro.id
+                    ? registro
+                    : { ...registro, id: 'trib-' + Date.now() + '-' + Math.random().toString(36).slice(2, 7), criadoEm: new Date().toISOString().split('T')[0] };
+                setTribunaisConhecimento(prev => {
+                    const existe = prev.some(t => t.id === obj.id);
+                    return existe ? prev.map(t => (t.id === obj.id ? obj : t)) : [obj, ...prev];
+                });
+                salvarNoSupabase('tribunais_conhecimento', obj);
+                showNotification('Anotação de tribunal salva!');
+                return obj;
+            };
+
+            const handleRemoverTribunal = (id) => {
+                setTribunaisConhecimento(prev => prev.filter(t => t.id !== id));
+                removerDoSupabase('tribunais_conhecimento', id);
+                showNotification('Anotação removida.');
             };
 
             // Form Handlers
@@ -534,13 +677,53 @@
                     return;
                 }
 
-                setProcesses([...processosNovos, ...processes]);
+                // Extrai clientes automaticamente: um processo importado do TJRJ/DJEN traz
+                // o nome da parte em clienteNome, mas não veio do CRM (sem clienteId). Casa
+                // com um cliente já cadastrado pelo nome (ignorando maiúsculas/espaços), ou
+                // cria um cadastro novo só com o nome preenchido — o resto (documento,
+                // contato etc.) fica pra completar depois em Clientes.
+                const normalizarNome = (nome) => (nome || '').trim().toLowerCase();
+                const clientesNovos = [];
+                const processosComCliente = processosNovos.map(p => {
+                    const nomeValido = p.clienteNome && p.clienteNome.trim() && p.clienteNome !== 'Parte não identificada';
+                    if (p.clienteId || !nomeValido) return p;
+
+                    const alvo = normalizarNome(p.clienteNome);
+                    let cliente = clients.find(c => normalizarNome(c.nome) === alvo)
+                        || clientesNovos.find(c => normalizarNome(c.nome) === alvo);
+
+                    if (!cliente) {
+                        cliente = {
+                            id: 'cli-' + Date.now() + '-' + Math.random().toString(36).slice(2, 7),
+                            nome: p.clienteNome.trim(),
+                            tipo: 'PF',
+                            documento: '',
+                            email: '',
+                            telefone: '',
+                            cidade: '',
+                            uf: p.uf || '',
+                            endereco: '',
+                            dataCadastro: new Date().toISOString().split('T')[0],
+                            origem: 'importado',
+                        };
+                        clientesNovos.push(cliente);
+                    }
+                    return { ...p, clienteId: cliente.id };
+                });
+
+                if (clientesNovos.length > 0) {
+                    setClients([...clientesNovos, ...clients]);
+                    clientesNovos.forEach(c => salvarNoSupabase('clients', c));
+                }
+
+                setProcesses([...processosComCliente, ...processes]);
                 setActiveTab('processos');
                 showNotification(
-                    `${processosNovos.length} processo(s) importado(s) do TJRJ` +
+                    `${processosComCliente.length} processo(s) importado(s) do TJRJ` +
+                    (clientesNovos.length > 0 ? ` — ${clientesNovos.length} cliente(s) novo(s) cadastrado(s) automaticamente` : '') +
                     (duplicados > 0 ? ` (${duplicados} já existia(m) e foi(ram) ignorado(s))` : '') + '.'
                 );
-                processosNovos.forEach(p => salvarNoSupabase('processes', p));
+                processosComCliente.forEach(p => salvarNoSupabase('processes', p));
             };
 
             const handleAddOab = (oab, uf, label) => {
@@ -637,7 +820,7 @@
             }
 
             return (
-                <div className="min-h-screen flex flex-col md:flex-row bg-slate-100">
+                <div className="min-h-screen md:h-screen flex flex-col md:flex-row bg-slate-100 md:overflow-hidden">
                     {/* Toast Notification */}
                     {toastMessage && (
                         <div className="fixed bottom-5 right-5 z-50 bg-slate-900 text-white px-5 py-3 rounded-lg shadow-xl flex items-center gap-3 border border-slate-700 animate-bounce">
@@ -652,7 +835,7 @@
                         </div>
                     )}
 
-                    <aside className="w-full md:w-64 bg-slate-900 text-slate-300 flex-shrink-0 border-r border-slate-800">
+                    <aside className="relative w-full md:w-64 bg-slate-900 text-slate-300 flex-shrink-0 border-r border-slate-800 md:h-full md:overflow-y-auto">
                         {/* Top Bar / Brand */}
                         <div className="p-5 flex items-center justify-between border-b border-slate-800">
                             <div className="flex items-center gap-3">
@@ -714,6 +897,13 @@
                                 count={alertas.filter(a => a.status === 'nao_tratada').length || undefined}
                                 active={activeTab === 'alertas'}
                                 onClick={() => { setActiveTab('alertas'); setIsMobileMenuOpen(false); }}
+                            />
+                            <SidebarItem
+                                icon="fa-landmark"
+                                label="Tribunais"
+                                count={tribunaisConhecimento.length || undefined}
+                                active={activeTab === 'tribunais'}
+                                onClick={() => { setActiveTab('tribunais'); setIsMobileMenuOpen(false); }}
                             />
 
                             <SidebarSectionLabel>Relacionamento</SidebarSectionLabel>
@@ -795,6 +985,7 @@
                                 processes={processes}
                                 clients={clients}
                                 financials={financials}
+                                session={session}
                                 onNavigate={setActiveTab}
                                 onNewProcess={() => setProcessModal('new')}
                                 onNewClient={() => setShowClientModal(true)}
@@ -836,6 +1027,14 @@
                                 onRemoveOab={handleRemoveOab}
                                 onAtualizarStatus={handleAtualizarStatusAlerta}
                                 onImportarComoProcesso={handleImportarAlertaComoProcesso}
+                            />
+                        )}
+
+                        {activeTab === 'tribunais' && (
+                            <TribunaisConhecimentoView
+                                tribunais={tribunaisConhecimento}
+                                onSalvar={handleSalvarTribunal}
+                                onRemover={handleRemoverTribunal}
                             />
                         )}
 
@@ -912,6 +1111,8 @@
                             process={selectedProcess}
                             clients={clients}
                             session={session}
+                            tribunais={tribunaisConhecimento}
+                            onSalvarTribunal={handleSalvarTribunal}
                             onClose={() => setSelectedProcess(null)}
                             onEdit={(process) => { setSelectedProcess(null); setProcessModal(process); }}
                             supabaseClient={supabaseClient}
@@ -954,7 +1155,11 @@
             );
         }
 
-        function DashboardView({ processes, clients, financials, onNavigate, onNewProcess, onNewClient }) {
+        function DashboardView({ processes, clients, financials, session, onNavigate, onNewProcess, onNewClient }) {
+            const nome = session?.user?.user_metadata?.nome;
+            const hora = new Date().getHours();
+            const saudacao = hora < 12 ? 'Bom dia' : hora < 18 ? 'Boa tarde' : 'Boa noite';
+
             // Cálculos Rápidos
             const totalReceita = financials
                 .filter(f => f.tipo === 'receita' && f.status === 'Pago')
@@ -974,7 +1179,9 @@
                     {/* Header do Dashboard */}
                     <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 bg-white p-6 rounded-2xl shadow-sm border border-slate-200">
                         <div>
-                            <h2 className="text-2xl font-bold text-slate-900 tracking-tight">Painel de Gestão Jurídica</h2>
+                            <h2 className="text-2xl font-bold text-slate-900 tracking-tight">
+                                {nome ? `${saudacao}, ${nome}!` : 'Painel de Gestão Jurídica'}
+                            </h2>
                             <p className="text-slate-500 text-sm mt-1">Visão geral do seu escritório autônomo e próximos compromissos.</p>
                         </div>
                         <div className="flex flex-wrap gap-2">
@@ -1831,14 +2038,19 @@
                             return (
                                 <div key={client.id} className="bg-white rounded-2xl p-5 border border-slate-200 shadow-sm flex flex-col justify-between space-y-4 hover:shadow-md transition">
                                     <div className="space-y-2">
-                                        <div className="flex justify-between items-start">
+                                        <div className="flex justify-between items-start gap-2">
                                             <span className={`px-2 py-0.5 text-xs font-bold rounded ${client.tipo === 'PF' ? 'bg-indigo-50 text-indigo-700' : 'bg-emerald-50 text-emerald-700'}`}>
                                                 Pessoa {client.tipo === 'PF' ? 'Física' : 'Jurídica'}
                                             </span>
-                                            <span className="text-xs text-slate-400">Desde {client.dataCadastro}</span>
+                                            <span className="text-xs text-slate-400 whitespace-nowrap">Desde {client.dataCadastro}</span>
                                         </div>
+                                        {client.origem === 'importado' && !client.documento && (
+                                            <span className="inline-block px-2 py-0.5 text-[10px] font-bold rounded bg-amber-50 text-amber-700">
+                                                <i className="fa-solid fa-pen mr-1"></i>Extraído automaticamente — revise os dados
+                                            </span>
+                                        )}
                                         <h3 className="font-bold text-slate-900 text-lg">{client.nome}</h3>
-                                        <p className="text-xs font-mono text-slate-500">Doc: {client.documento}</p>
+                                        <p className="text-xs font-mono text-slate-500">Doc: {client.documento || '—'}</p>
                                     </div>
 
                                     <div className="space-y-1.5 text-xs text-slate-600 border-t border-slate-100 pt-3">
@@ -3120,7 +3332,7 @@ OAB nº ${advogadoOab}`;
             };
 
             return (
-                <div className="border-t pt-4 space-y-3">
+                <div className="space-y-3">
                     <h4 className="text-xs font-bold text-slate-700 uppercase flex items-center gap-2">
                         <i className="fa-solid fa-wand-magic-sparkles text-indigo-500"></i> Assistente de IA
                     </h4>
@@ -3225,7 +3437,7 @@ OAB nº ${advogadoOab}`;
             };
 
             return (
-                <div className="border-t pt-4 space-y-3">
+                <div className="space-y-3">
                     <div className="flex items-center justify-between">
                         <h4 className="text-xs font-bold text-slate-700 uppercase flex items-center gap-2">
                             <i className="fa-solid fa-landmark-flag text-amber-500"></i> Movimentações (DataJud/CNJ)
@@ -3271,7 +3483,259 @@ OAB nº ${advogadoOab}`;
             );
         }
 
-        function ProcessDetailsModal({ process, clients, session, onClose, onEdit, supabaseClient }) {
+        // O JurisControl começa focado no Rio de Janeiro (Capital, Grande Rio, Niterói,
+        // Região dos Lagos) — por isso essas comarcas aparecem primeiro, como atalho de
+        // um clique. O campo continua livre (datalist), então qualquer outro
+        // tribunal/comarca do Brasil também pode ser digitado.
+        const COMARCAS_RJ_PRIORITARIAS = [
+            'TJRJ - Comarca da Capital (Rio de Janeiro)',
+            'TJRJ - Comarca de Niterói',
+            'TJRJ - Comarca de São Gonçalo',
+            'TJRJ - Comarca de Duque de Caxias',
+            'TJRJ - Comarca de Nova Iguaçu',
+            'TJRJ - Comarca de São João de Meriti',
+            'TJRJ - Comarca de Nilópolis',
+            'TJRJ - Comarca de Belford Roxo',
+            'TJRJ - Comarca de Cabo Frio',
+            'TJRJ - Comarca de Búzios',
+            'TJRJ - Comarca de Araruama',
+            'TJRJ - Comarca de Rio das Ostras',
+            'TJRJ - Comarca de Saquarema',
+        ];
+
+        const LISTA_TRIBUNAIS_BR = [
+            ...COMARCAS_RJ_PRIORITARIAS,
+            'STF - Supremo Tribunal Federal', 'STJ - Superior Tribunal de Justiça',
+            'TST - Tribunal Superior do Trabalho', 'TSE - Tribunal Superior Eleitoral',
+            'TJAC - Tribunal de Justiça do Acre', 'TJAL - Tribunal de Justiça de Alagoas',
+            'TJAP - Tribunal de Justiça do Amapá', 'TJAM - Tribunal de Justiça do Amazonas',
+            'TJBA - Tribunal de Justiça da Bahia', 'TJCE - Tribunal de Justiça do Ceará',
+            'TJDFT - Tribunal de Justiça do Distrito Federal e Territórios',
+            'TJES - Tribunal de Justiça do Espírito Santo', 'TJGO - Tribunal de Justiça de Goiás',
+            'TJMA - Tribunal de Justiça do Maranhão', 'TJMT - Tribunal de Justiça de Mato Grosso',
+            'TJMS - Tribunal de Justiça de Mato Grosso do Sul', 'TJMG - Tribunal de Justiça de Minas Gerais',
+            'TJPA - Tribunal de Justiça do Pará', 'TJPB - Tribunal de Justiça da Paraíba',
+            'TJPR - Tribunal de Justiça do Paraná', 'TJPE - Tribunal de Justiça de Pernambuco',
+            'TJPI - Tribunal de Justiça do Piauí', 'TJRJ - Tribunal de Justiça do Rio de Janeiro (outras comarcas)',
+            'TJRN - Tribunal de Justiça do Rio Grande do Norte', 'TJRS - Tribunal de Justiça do Rio Grande do Sul',
+            'TJRO - Tribunal de Justiça de Rondônia', 'TJRR - Tribunal de Justiça de Roraima',
+            'TJSC - Tribunal de Justiça de Santa Catarina', 'TJSP - Tribunal de Justiça de São Paulo',
+            'TJSE - Tribunal de Justiça de Sergipe', 'TJTO - Tribunal de Justiça do Tocantins',
+            'TRF1 - Tribunal Regional Federal da 1ª Região', 'TRF2 - Tribunal Regional Federal da 2ª Região (RJ/ES)',
+            'TRF3 - Tribunal Regional Federal da 3ª Região', 'TRF4 - Tribunal Regional Federal da 4ª Região',
+            'TRF5 - Tribunal Regional Federal da 5ª Região', 'TRF6 - Tribunal Regional Federal da 6ª Região',
+            'TRT1 - Tribunal Regional do Trabalho da 1ª Região (RJ)', 'TRT2 - Tribunal Regional do Trabalho da 2ª Região (SP)',
+            'TRT3 - Tribunal Regional do Trabalho da 3ª Região (MG)', 'TRT4 - Tribunal Regional do Trabalho da 4ª Região (RS)',
+        ];
+
+        // Tenta sugerir o tribunal a partir do texto da vara/ação do processo — só um
+        // atalho pra pré-preencher o formulário, o(a) advogado(a) sempre pode trocar.
+        function sugerirTribunal(process) {
+            const texto = `${process?.vara || ''} ${process?.acao || ''}`.toUpperCase();
+            if (texto.includes('NITER')) return 'TJRJ - Comarca de Niterói';
+            if (texto.includes('CABO FRIO')) return 'TJRJ - Comarca de Cabo Frio';
+            if (texto.includes('CAPITAL') || texto.includes('RIO DE JANEIRO')) return 'TJRJ - Comarca da Capital (Rio de Janeiro)';
+            const encontrado = LISTA_TRIBUNAIS_BR.find(t => texto.includes(t.split(' - ')[0]));
+            return encontrado || '';
+        }
+
+        function TribunalModal({ registroInicial, onClose, onSave }) {
+            const [tribunal, setTribunal] = useState(registroInicial?.tribunal || '');
+            const [vara, setVara] = useState(registroInicial?.vara || '');
+            const [notas, setNotas] = useState(registroInicial?.notas || '');
+            const [contato, setContato] = useState(registroInicial?.contato || '');
+            const [link, setLink] = useState(registroInicial?.link || '');
+
+            const handleSubmit = (e) => {
+                e.preventDefault();
+                if (!tribunal.trim()) { alert('Selecione ou digite o tribunal/comarca.'); return; }
+                onSave({
+                    ...(registroInicial || {}),
+                    tribunal: tribunal.trim(), vara: vara.trim(), notas: notas.trim(),
+                    contato: contato.trim(), link: link.trim(),
+                });
+            };
+
+            return (
+                <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+                    <div className="bg-white rounded-2xl max-w-lg w-full p-6 shadow-2xl space-y-4 max-h-[90vh] overflow-y-auto">
+                        <div className="flex justify-between items-center border-b pb-3">
+                            <h3 className="font-bold text-lg text-slate-900">{registroInicial?.id ? 'Editar Anotação' : 'Nova Anotação de Tribunal'}</h3>
+                            <button onClick={onClose} className="text-slate-400 hover:text-slate-600"><i className="fa-solid fa-xmark text-lg"></i></button>
+                        </div>
+                        <form onSubmit={handleSubmit} className="space-y-3">
+                            <div>
+                                <label className="block text-xs font-semibold text-slate-600 mb-1">Tribunal / Comarca *</label>
+                                <input required list="lista-tribunais-br" value={tribunal} onChange={e => setTribunal(e.target.value)} placeholder="Selecione ou digite (ex: TJRJ - Comarca de Niterói)" className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-lg text-sm" />
+                                <datalist id="lista-tribunais-br">
+                                    {LISTA_TRIBUNAIS_BR.map(t => <option key={t} value={t} />)}
+                                </datalist>
+                                <div className="flex flex-wrap gap-1.5 mt-2">
+                                    {COMARCAS_RJ_PRIORITARIAS.slice(0, 6).map(c => (
+                                        <button key={c} type="button" onClick={() => setTribunal(c)} className="text-[10px] px-2 py-1 bg-slate-100 hover:bg-amber-100 text-slate-600 rounded-full">
+                                            {c.replace('TJRJ - Comarca ', '').replace(' da Capital (Rio de Janeiro)', 'Capital')}
+                                        </button>
+                                    ))}
+                                </div>
+                            </div>
+                            <div>
+                                <label className="block text-xs font-semibold text-slate-600 mb-1">Vara / Câmara (opcional)</label>
+                                <input value={vara} onChange={e => setVara(e.target.value)} placeholder="Ex: 3ª Vara Cível" className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-lg text-sm" />
+                            </div>
+                            <div>
+                                <label className="block text-xs font-semibold text-slate-600 mb-1">Anotações</label>
+                                <textarea value={notas} onChange={e => setNotas(e.target.value)} rows={5} placeholder="Ex: peticionamento só via PJe, secretaria atende só de manhã, juiz costuma exigir laudo pericial em ações de saúde..." className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-lg text-sm" />
+                            </div>
+                            <div className="grid grid-cols-2 gap-3">
+                                <div>
+                                    <label className="block text-xs font-semibold text-slate-600 mb-1">Contato (opcional)</label>
+                                    <input value={contato} onChange={e => setContato(e.target.value)} placeholder="Telefone, e-mail..." className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-lg text-sm" />
+                                </div>
+                                <div>
+                                    <label className="block text-xs font-semibold text-slate-600 mb-1">Link útil (opcional)</label>
+                                    <input value={link} onChange={e => setLink(e.target.value)} placeholder="https://..." className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-lg text-sm" />
+                                </div>
+                            </div>
+                            <div className="flex justify-end gap-2 pt-2">
+                                <button type="button" onClick={onClose} className="px-4 py-2 bg-slate-100 text-slate-700 text-sm font-semibold rounded-lg">Cancelar</button>
+                                <button type="submit" className="px-4 py-2 bg-amber-500 hover:bg-amber-600 text-slate-950 font-semibold rounded-lg text-sm">Salvar</button>
+                            </div>
+                        </form>
+                    </div>
+                </div>
+            );
+        }
+
+        function TribunaisConhecimentoView({ tribunais, onSalvar, onRemover }) {
+            const [busca, setBusca] = useState('');
+            const [modalAberto, setModalAberto] = useState(false);
+            const [editando, setEditando] = useState(null);
+
+            const filtrados = tribunais.filter(t =>
+                (t.tribunal || '').toLowerCase().includes(busca.toLowerCase()) ||
+                (t.vara || '').toLowerCase().includes(busca.toLowerCase())
+            );
+
+            return (
+                <div className="space-y-6">
+                    <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 bg-white p-6 rounded-2xl shadow-sm border border-slate-200">
+                        <div>
+                            <h2 className="text-2xl font-bold text-slate-900">Base de Conhecimento de Tribunais</h2>
+                            <p className="text-slate-500 text-sm mt-1">Suas próprias anotações sobre tribunais, varas e comarcas — peculiaridades, contatos, links úteis. Só você vê isso.</p>
+                        </div>
+                        <button onClick={() => { setEditando(null); setModalAberto(true); }} className="px-4 py-2 bg-amber-500 hover:bg-amber-600 text-slate-950 font-semibold rounded-lg text-sm flex items-center gap-2 shadow-sm whitespace-nowrap">
+                            <i className="fa-solid fa-plus"></i> Nova Anotação
+                        </button>
+                    </div>
+
+                    <div className="relative">
+                        <i className="fa-solid fa-magnifying-glass absolute left-3.5 top-3.5 text-slate-400"></i>
+                        <input type="text" placeholder="Buscar por tribunal/comarca ou vara..." value={busca} onChange={e => setBusca(e.target.value)} className="w-full pl-10 pr-4 py-2.5 bg-white border border-slate-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-amber-500" />
+                    </div>
+
+                    {filtrados.length === 0 && (
+                        <div className="bg-white p-10 rounded-2xl border border-slate-200 text-center text-slate-400">
+                            <i className="fa-solid fa-landmark text-3xl mb-3"></i>
+                            <p>Nenhuma anotação {busca ? 'encontrada' : 'cadastrada ainda'}.</p>
+                        </div>
+                    )}
+
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
+                        {filtrados.map(t => (
+                            <div key={t.id} className="bg-white rounded-2xl p-5 border border-slate-200 shadow-sm space-y-2">
+                                <div className="flex justify-between items-start gap-2">
+                                    <div>
+                                        <h3 className="font-bold text-slate-900">{t.tribunal}</h3>
+                                        {t.vara && <p className="text-xs text-slate-500">{t.vara}</p>}
+                                    </div>
+                                    <div className="flex gap-1 flex-shrink-0">
+                                        <button onClick={() => { setEditando(t); setModalAberto(true); }} className="text-slate-400 hover:text-indigo-600 p-1.5"><i className="fa-solid fa-pen text-xs"></i></button>
+                                        <button onClick={() => { if (confirm('Remover esta anotação?')) onRemover(t.id); }} className="text-slate-400 hover:text-rose-600 p-1.5"><i className="fa-solid fa-trash text-xs"></i></button>
+                                    </div>
+                                </div>
+                                {t.notas && <p className="text-sm text-slate-600 whitespace-pre-line">{t.notas}</p>}
+                                {(t.contato || t.link) && (
+                                    <div className="flex flex-wrap gap-3 pt-2 border-t border-slate-100 text-xs text-slate-500">
+                                        {t.contato && <span><i className="fa-solid fa-phone mr-1"></i>{t.contato}</span>}
+                                        {t.link && <a href={t.link} target="_blank" rel="noreferrer" className="text-indigo-600 hover:underline"><i className="fa-solid fa-link mr-1"></i>Link útil</a>}
+                                    </div>
+                                )}
+                            </div>
+                        ))}
+                    </div>
+
+                    {modalAberto && (
+                        <TribunalModal
+                            registroInicial={editando}
+                            onClose={() => setModalAberto(false)}
+                            onSave={(dados) => { onSalvar(dados); setModalAberto(false); }}
+                        />
+                    )}
+                </div>
+            );
+        }
+
+        // Versão compacta, embutida na aba "Tribunal" dos detalhes do processo — já
+        // filtra pelas anotações relacionadas ao tribunal/vara sugeridos e pré-preenche
+        // o formulário de nova anotação com esses dados.
+        function TribunalPanelProcesso({ process, tribunais, onSalvarTribunal }) {
+            const [modalAberto, setModalAberto] = useState(false);
+            const [editando, setEditando] = useState(null);
+            const sugestao = sugerirTribunal(process);
+            const relacionados = tribunais.filter(t =>
+                (sugestao && t.tribunal === sugestao) ||
+                (process.vara && t.vara && process.vara.toLowerCase().includes(t.vara.toLowerCase()))
+            );
+
+            return (
+                <div className="space-y-3">
+                    <div className="flex items-center justify-between">
+                        <h4 className="text-xs font-bold text-slate-700 uppercase flex items-center gap-2">
+                            <i className="fa-solid fa-landmark text-amber-600"></i> Conhecimento sobre este Tribunal
+                        </h4>
+                        <button onClick={() => { setEditando(null); setModalAberto(true); }} className="text-xs font-semibold text-indigo-600 hover:text-indigo-800">
+                            <i className="fa-solid fa-plus mr-1"></i> Nova anotação
+                        </button>
+                    </div>
+                    {relacionados.length === 0 && (
+                        <p className="text-xs text-slate-400">Nenhuma anotação ainda{sugestao ? ` para ${sugestao}` : ' para este tribunal/vara'}. Cadastre observações que valem pra qualquer processo dessa vara (peticionamento, secretaria, praxes do juízo...).</p>
+                    )}
+                    <div className="space-y-2">
+                        {relacionados.map(t => (
+                            <div key={t.id} className="p-3 bg-slate-50 border border-slate-200 rounded-xl text-xs">
+                                <div className="flex justify-between items-start">
+                                    <div>
+                                        <p className="font-bold text-slate-800">{t.tribunal}</p>
+                                        {t.vara && <p className="text-slate-500">{t.vara}</p>}
+                                    </div>
+                                    <button onClick={() => { setEditando(t); setModalAberto(true); }} className="text-slate-400 hover:text-indigo-600"><i className="fa-solid fa-pen"></i></button>
+                                </div>
+                                {t.notas && <p className="text-slate-600 mt-1.5 whitespace-pre-line">{t.notas}</p>}
+                            </div>
+                        ))}
+                    </div>
+                    {modalAberto && (
+                        <TribunalModal
+                            registroInicial={editando || { tribunal: sugestao, vara: process.vara || '' }}
+                            onClose={() => setModalAberto(false)}
+                            onSave={(dados) => { onSalvarTribunal(dados); setModalAberto(false); }}
+                        />
+                    )}
+                </div>
+            );
+        }
+
+        const ABAS_PROCESSO = [
+            { id: 'geral', label: 'Visão Geral', icon: 'fa-circle-info' },
+            { id: 'jurisprudencia', label: 'Jurisprudência', icon: 'fa-scale-balanced' },
+            { id: 'ia', label: 'Assistente de IA', icon: 'fa-wand-magic-sparkles' },
+            { id: 'datajud', label: 'Movimentações', icon: 'fa-timeline' },
+            { id: 'documento', label: 'Gerar Documento', icon: 'fa-file-signature' },
+            { id: 'tribunal', label: 'Tribunal', icon: 'fa-landmark' },
+        ];
+
+        function ProcessDetailsModal({ process, clients, session, tribunais, onSalvarTribunal, onClose, onEdit, supabaseClient }) {
+            const [abaAtiva, setAbaAtiva] = useState('geral');
             const [jurisprudencia, setJurisprudencia] = useState(null); // null = ainda não buscou
             const [loadingJuris, setLoadingJuris] = useState(false);
             const [erroJuris, setErroJuris] = useState(null);
@@ -3305,76 +3769,110 @@ OAB nº ${advogadoOab}`;
 
             return (
                 <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-                    <div className="bg-white rounded-2xl max-w-2xl w-full p-6 shadow-2xl space-y-4 max-h-[85vh] overflow-y-auto">
-                        <div className="flex justify-between items-center border-b pb-3">
+                    <div className="bg-white rounded-2xl max-w-5xl w-full h-[88vh] shadow-2xl flex flex-col overflow-hidden">
+                        <div className="flex justify-between items-center border-b px-6 py-4 flex-shrink-0">
                             <div>
                                 <span className="text-xs font-bold text-amber-600 uppercase">{process.area}</span>
                                 <h3 className="font-bold text-lg text-slate-900">{process.numero}</h3>
                             </div>
-                            <button onClick={onClose} className="text-slate-400 hover:text-slate-600"><i className="fa-solid fa-xmark text-lg"></i></button>
+                            <div className="flex items-center gap-2">
+                                <button onClick={() => onEdit(process)} className="px-3 py-1.5 bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-bold rounded-lg shadow-sm flex items-center gap-2">
+                                    <i className="fa-solid fa-pen"></i> Editar
+                                </button>
+                                <button onClick={onClose} className="text-slate-400 hover:text-slate-600 p-1.5"><i className="fa-solid fa-xmark text-lg"></i></button>
+                            </div>
                         </div>
-                        <div className="space-y-3 text-sm text-slate-700">
-                            <p><strong>Cliente:</strong> {process.clienteNome}</p>
-                            <p><strong>Vara/Tribunal:</strong> {process.vara}</p>
-                            <p><strong>Ação:</strong> {process.acao}</p>
-                            <p><strong>Fase Atual:</strong> <span className="px-2 py-0.5 bg-blue-50 text-blue-700 font-semibold rounded text-xs">{process.fase}</span></p>
-                            <p><strong>Valor da Causa:</strong> R$ {Number(process.valorCausa).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</p>
-                            {process.proximoPrazo && (
-                                <div className="p-3 bg-amber-50 border border-amber-200 rounded-xl text-xs text-amber-900">
-                                    <strong>Próximo Prazo:</strong> {process.descricaoPrazo} (Vencimento: {new Date(process.proximoPrazo + 'T00:00:00').toLocaleDateString('pt-BR')})
+
+                        {/* Abas — evita empilhar tudo verticalmente numa coluna estreita */}
+                        <div className="flex items-center gap-1 px-4 pt-3 border-b overflow-x-auto flex-shrink-0">
+                            {ABAS_PROCESSO.map(aba => (
+                                <button
+                                    key={aba.id}
+                                    onClick={() => setAbaAtiva(aba.id)}
+                                    className={`px-3 py-2 text-xs font-semibold rounded-t-lg whitespace-nowrap flex items-center gap-1.5 transition ${
+                                        abaAtiva === aba.id
+                                            ? 'bg-slate-100 text-slate-900 border-b-2 border-amber-500'
+                                            : 'text-slate-500 hover:text-slate-800 hover:bg-slate-50'
+                                    }`}
+                                >
+                                    <i className={`fa-solid ${aba.icon}`}></i> {aba.label}
+                                </button>
+                            ))}
+                        </div>
+
+                        <div className="flex-1 overflow-y-auto p-6">
+                            {abaAtiva === 'geral' && (
+                                <div className="space-y-3 text-sm text-slate-700 max-w-2xl">
+                                    <p><strong>Cliente:</strong> {process.clienteNome}</p>
+                                    <p><strong>Vara/Tribunal:</strong> {process.vara}</p>
+                                    <p><strong>Ação:</strong> {process.acao}</p>
+                                    <p><strong>Fase Atual:</strong> <span className="px-2 py-0.5 bg-blue-50 text-blue-700 font-semibold rounded text-xs">{process.fase}</span></p>
+                                    <p><strong>Valor da Causa:</strong> R$ {Number(process.valorCausa).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</p>
+                                    {process.proximoPrazo && (
+                                        <div className="p-3 bg-amber-50 border border-amber-200 rounded-xl text-xs text-amber-900">
+                                            <strong>Próximo Prazo:</strong> {process.descricaoPrazo} (Vencimento: {new Date(process.proximoPrazo + 'T00:00:00').toLocaleDateString('pt-BR')})
+                                        </div>
+                                    )}
                                 </div>
                             )}
-                        </div>
 
-                        <div className="pt-3 border-t">
-                            <div className="flex items-center justify-between mb-3">
-                                <h4 className="font-bold text-slate-900 text-sm flex items-center gap-2">
-                                    <i className="fa-solid fa-scale-balanced text-indigo-500"></i> Jurisprudência Relacionada
-                                </h4>
-                                {jurisprudencia && (
-                                    <span className={`text-[10px] font-bold px-2 py-0.5 rounded uppercase ${jurisprudencia.simulado ? 'bg-amber-100 text-amber-700' : 'bg-emerald-100 text-emerald-700'}`}>
-                                        {jurisprudencia.simulado ? 'Simulação' : `Real (${jurisprudencia.fonte})`}
-                                    </span>
-                                )}
-                            </div>
-
-                            {loadingJuris && (
-                                <p className="text-xs text-slate-400"><i className="fa-solid fa-spinner fa-spin mr-2"></i>Buscando jurisprudência relacionada...</p>
-                            )}
-                            {erroJuris && <p className="text-xs text-rose-600">{erroJuris}</p>}
-                            {jurisprudencia && jurisprudencia.mensagem && (
-                                <p className="text-[11px] text-slate-400 mb-2">{jurisprudencia.mensagem}</p>
-                            )}
-                            {jurisprudencia && (!jurisprudencia.resultados || jurisprudencia.resultados.length === 0) && !loadingJuris && (
-                                <p className="text-xs text-slate-400">Nenhum resultado encontrado para este assunto.</p>
-                            )}
-
-                            <div className="space-y-3">
-                                {(jurisprudencia?.resultados || []).map((r, idx) => (
-                                    <div key={idx} className="p-3 bg-slate-50 border border-slate-200 rounded-xl">
-                                        <p className="text-xs font-bold text-slate-800">{r.titulo}</p>
-                                        <p className="text-[11px] text-indigo-600 font-medium mt-0.5">{r.tribunal} {r.data && `• ${r.data.slice(0, 10)}`}</p>
-                                        <p className="text-xs text-slate-600 mt-1.5">{r.ementa}</p>
+                            {abaAtiva === 'jurisprudencia' && (
+                                <div>
+                                    <div className="flex items-center justify-between mb-3">
+                                        <h4 className="font-bold text-slate-900 text-sm flex items-center gap-2">
+                                            <i className="fa-solid fa-scale-balanced text-indigo-500"></i> Jurisprudência Relacionada
+                                        </h4>
+                                        {jurisprudencia && (
+                                            <span className={`text-[10px] font-bold px-2 py-0.5 rounded uppercase ${jurisprudencia.simulado ? 'bg-amber-100 text-amber-700' : 'bg-emerald-100 text-emerald-700'}`}>
+                                                {jurisprudencia.simulado ? 'Simulação' : `Real (${jurisprudencia.fonte})`}
+                                            </span>
+                                        )}
                                     </div>
-                                ))}
-                            </div>
-                        </div>
 
-                        <AiAssistPanel process={process} supabaseClient={supabaseClient} />
-                        <DataJudPanel process={process} supabaseClient={supabaseClient} />
+                                    {loadingJuris && (
+                                        <p className="text-xs text-slate-400"><i className="fa-solid fa-spinner fa-spin mr-2"></i>Buscando jurisprudência relacionada...</p>
+                                    )}
+                                    {erroJuris && <p className="text-xs text-rose-600">{erroJuris}</p>}
+                                    {jurisprudencia && jurisprudencia.mensagem && (
+                                        <p className="text-[11px] text-slate-400 mb-2">{jurisprudencia.mensagem}</p>
+                                    )}
+                                    {jurisprudencia && (!jurisprudencia.resultados || jurisprudencia.resultados.length === 0) && !loadingJuris && (
+                                        <p className="text-xs text-slate-400">Nenhum resultado encontrado para este assunto.</p>
+                                    )}
 
-                        <div className="border-t pt-4 space-y-3">
-                            <h4 className="text-xs font-bold text-slate-700 uppercase flex items-center gap-2">
-                                <i className="fa-solid fa-file-signature text-blue-700"></i> Gerar Documento deste Processo
-                            </h4>
-                            <DocumentGeneratorView clients={clients} processes={[]} session={session} processoFixo={process} />
-                        </div>
+                                    <div className="grid grid-cols-1 lg:grid-cols-2 gap-3">
+                                        {(jurisprudencia?.resultados || []).map((r, idx) => (
+                                            <div key={idx} className="p-3 bg-slate-50 border border-slate-200 rounded-xl">
+                                                <p className="text-xs font-bold text-slate-800">{r.titulo}</p>
+                                                <p className="text-[11px] text-indigo-600 font-medium mt-0.5">{r.tribunal} {r.data && `• ${r.data.slice(0, 10)}`}</p>
+                                                <p className="text-xs text-slate-600 mt-1.5">{r.ementa}</p>
+                                            </div>
+                                        ))}
+                                    </div>
+                                </div>
+                            )}
 
-                        <div className="flex justify-end gap-2 pt-3 border-t">
-                            <button onClick={onClose} className="px-4 py-2 bg-slate-100 text-slate-700 text-xs font-semibold rounded-lg">Fechar</button>
-                            <button onClick={() => onEdit(process)} className="px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-bold rounded-lg shadow-sm flex items-center gap-2">
-                                <i className="fa-solid fa-pen"></i> Editar
-                            </button>
+                            {abaAtiva === 'ia' && (
+                                <div className="max-w-3xl">
+                                    <AiAssistPanel process={process} supabaseClient={supabaseClient} />
+                                </div>
+                            )}
+
+                            {abaAtiva === 'datajud' && (
+                                <div className="max-w-3xl">
+                                    <DataJudPanel process={process} supabaseClient={supabaseClient} />
+                                </div>
+                            )}
+
+                            {abaAtiva === 'documento' && (
+                                <DocumentGeneratorView clients={clients} processes={[]} session={session} processoFixo={process} />
+                            )}
+
+                            {abaAtiva === 'tribunal' && (
+                                <div className="max-w-2xl">
+                                    <TribunalPanelProcesso process={process} tribunais={tribunais} onSalvarTribunal={onSalvarTribunal} />
+                                </div>
+                            )}
                         </div>
                     </div>
                 </div>
