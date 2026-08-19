@@ -5,3 +5,4 @@ node_modules/
 .claude/
 .vscode/
 supabase/.temp/
+dist/

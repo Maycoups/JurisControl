@@ -441,3 +441,11 @@ enabled = true
 verify_jwt = true
 import_map = "./functions/datajud-busca/deno.json"
 entrypoint = "./functions/datajud-busca/index.ts"
+
+[functions.verificar-convite]
+enabled = true
+# Exceção deliberada: precisa ser chamável antes de existir sessão. Ver comentário
+# no topo de supabase/functions/verificar-convite/index.ts.
+verify_jwt = false
+import_map = "./functions/verificar-convite/deno.json"
+entrypoint = "./functions/verificar-convite/index.ts"

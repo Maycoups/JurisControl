@@ -214,6 +214,21 @@
                             setCarregando(false);
                             return;
                         }
+                        // Verifica o convite ANTES de tentar criar a conta — evita depender da
+                        // mensagem de erro do signUp() em caso de recusa (o cliente Supabase
+                        // trata a recusa como erro "retentável" e troca a mensagem original por
+                        // um texto genérico depois de tentar de novo sozinho).
+                        const { data: convite, error: erroConvite } = await supabaseClient.functions.invoke('verificar-convite', { body: { email } });
+                        if (erroConvite) {
+                            setMensagem({ tipo: 'erro', texto: 'Não foi possível verificar o convite agora. Tente novamente em instantes.' });
+                            setCarregando(false);
+                            return;
+                        }
+                        if (!convite || !convite.permitido) {
+                            setMensagem({ tipo: 'erro', texto: 'Este e-mail não está na lista de convidados do JurisControl. Peça acesso ao administrador.' });
+                            setCarregando(false);
+                            return;
+                        }
                         const { data, error } = await supabaseClient.auth.signUp({ email, password: senha });
                         if (error) throw error;
                         if (data.session) {
