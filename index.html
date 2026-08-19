@@ -147,6 +147,28 @@
 
         const CNJ_REGEX = /^\d{7}-\d{2}\.\d{4}\.\d{1}\.\d{2}\.\d{4}$/;
 
+        // supabaseClient.functions.invoke() sempre devolve error.message genérico
+        // ("Edge Function returned a non-2xx status code"), mesmo quando a function
+        // manda uma mensagem específica e útil no corpo da resposta (ex: "IA
+        // gratuita indisponível...", "Não autenticado..."). A mensagem de verdade
+        // fica em error.context (a Response crua), que a biblioteca não lê sozinha
+        // — confirmado testando ao vivo. Este helper tem a mesma assinatura de
+        // functions.invoke(), só que com error.message já sendo o texto real
+        // quando a function devolveu um `{ error: "..." }` no corpo.
+        async function invocarFunction(supabaseClient, nome, opcoes) {
+            const resultado = await supabaseClient.functions.invoke(nome, opcoes);
+            if (resultado.error && resultado.error.context) {
+                try {
+                    const corpo = await resultado.error.context.json();
+                    if (corpo && corpo.error) {
+                        resultado.error = new Error(corpo.error);
+                        resultado.error.detalhes = corpo;
+                    }
+                } catch { /* corpo não era JSON — mantém a mensagem genérica original */ }
+            }
+            return resultado;
+        }
+
         // --- Exportar texto como .docx real (Word) ---
         // html-docx-js roda 100% no navegador (gratuita, MIT) e converte um HTML
         // completo num Blob .docx que o Word abre nativamente, sem servidor nenhum.
@@ -258,7 +280,7 @@
                         // mensagem de erro do signUp() em caso de recusa (o cliente Supabase
                         // trata a recusa como erro "retentável" e troca a mensagem original por
                         // um texto genérico depois de tentar de novo sozinho).
-                        const { data: convite, error: erroConvite } = await supabaseClient.functions.invoke('verificar-convite', { body: { email } });
+                        const { data: convite, error: erroConvite } = await invocarFunction(supabaseClient, 'verificar-convite', { body: { email } });
                         if (erroConvite) {
                             setMensagem({ tipo: 'erro', texto: 'Não foi possível verificar o convite agora. Tente novamente em instantes.' });
                             setCarregando(false);
@@ -1304,7 +1326,7 @@
                 setFonteDados(null);
 
                 try {
-                    const { data, error } = await supabaseClient.functions.invoke('busca-tjrj', {
+                    const { data, error } = await invocarFunction(supabaseClient, 'busca-tjrj', {
                         body: { oab: oab.trim(), uf },
                     });
 
@@ -1618,7 +1640,7 @@
 
                 for (const registro of oabsMonitoradas) {
                     try {
-                        const { data, error } = await supabaseClient.functions.invoke('busca-tjrj', {
+                        const { data, error } = await invocarFunction(supabaseClient, 'busca-tjrj', {
                             body: { oab: registro.oab, uf: registro.uf },
                         });
                         if (error) throw error;
@@ -2410,6 +2432,9 @@ OAB nº ${advogadoOab}`;
             const [instrucoes, setInstrucoes] = useState('');
             const [loading, setLoading] = useState(false);
             const [erro, setErro] = useState(null);
+            // Muda a cada geração bem-sucedida — usado como `key` do banner de uso
+            // gratuito abaixo, pra forçar ele a reconsultar a contagem atualizada.
+            const [atualizacoesUso, setAtualizacoesUso] = useState(0);
             const [resultado, setResultado] = useState(null);
 
             const gerar = async () => {
@@ -2427,7 +2452,7 @@ OAB nº ${advogadoOab}`;
                 const { apiKey, provedor } = await resolverProvedorIA();
 
                 try {
-                    const { data, error } = await supabaseClient.functions.invoke('criar-peca-ia', {
+                    const { data, error } = await invocarFunction(supabaseClient, 'criar-peca-ia', {
                         body: {
                             tarefa: 'minuta',
                             contexto: {
@@ -2448,6 +2473,7 @@ OAB nº ${advogadoOab}`;
                     }
 
                     setResultado(data);
+                    setAtualizacoesUso(n => n + 1);
                 } catch (err) {
                     console.error('Erro ao gerar peça com IA:', err);
                     setErro('Erro ao gerar a peça. Verifique sua conexão, ou conecte sua própria chave em Configurações se o plano gratuito estiver indisponível.');
@@ -2477,7 +2503,7 @@ OAB nº ${advogadoOab}`;
                         <p className="text-slate-500 text-sm mt-1">Gere minutas de peças jurídicas com IA, usando os dados de clientes e processos já cadastrados. Todo texto gerado precisa de revisão humana antes do uso.</p>
                     </div>
 
-                    <UsoIAGratuitaBanner supabaseClient={supabaseClient} session={session} />
+                    <UsoIAGratuitaBanner key={atualizacoesUso} supabaseClient={supabaseClient} session={session} />
 
                     <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
                         <div className="bg-white p-5 rounded-2xl border border-slate-200 shadow-sm space-y-4">
@@ -3073,7 +3099,7 @@ OAB nº ${advogadoOab}`;
                 setCopiado(false);
                 try {
                     const { apiKey, provedor } = await resolverProvedorIA();
-                    const { data, error } = await supabaseClient.functions.invoke('criar-peca-ia', {
+                    const { data, error } = await invocarFunction(supabaseClient, 'criar-peca-ia', {
                         body: { tarefa, contexto: { processo: process, ...extra }, apiKey: apiKey || undefined, provedor: provedor || undefined },
                     });
                     if (error) throw error;
@@ -3176,7 +3202,7 @@ OAB nº ${advogadoOab}`;
                 setErro('');
                 try {
                     const apiKey = await getSecret('DATAJUD_API_KEY');
-                    const { data, error } = await supabaseClient.functions.invoke('datajud-busca', {
+                    const { data, error } = await invocarFunction(supabaseClient, 'datajud-busca', {
                         body: { numeroCNJ: process.numero, apiKey: apiKey || undefined },
                     });
                     if (error) throw error;
@@ -3261,7 +3287,7 @@ OAB nº ${advogadoOab}`;
                 setLoadingJuris(true);
                 setErroJuris(null);
 
-                supabaseClient.functions.invoke('busca-jurisprudencia', { body: { termo, uf: process.uf || 'RJ' } })
+                invocarFunction(supabaseClient, 'busca-jurisprudencia', { body: { termo, uf: process.uf || 'RJ' } })
                     .then(({ data, error }) => {
                         if (cancelado) return;
                         if (error) throw error;
