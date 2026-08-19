@@ -40,7 +40,7 @@ const CORS_HEADERS: Record<string, string> = {
 // Modelo padrão do free tier — "flash" é a linha rápida/barata do Gemini, feita
 // pra caber em cotas gratuitas. Se o Google lançar uma linha "flash" mais nova
 // ainda coberta pelo free tier, é só trocar aqui.
-const GEMINI_MODELO_PADRAO = "gemini-2.5-flash";
+const GEMINI_MODELO_PADRAO = "gemini-3.6-flash";
 const LIMITE_GRATUITO_MENSAL = 10;
 
 const MODELO_ANTHROPIC_PADRAO = "claude-sonnet-5";
