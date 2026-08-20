@@ -1,0 +1,332 @@
+<!doctype html>
+<html>
+
+<head>
+  <!-- Meta -->
+  <meta http-equiv="expires" content="-1" />
+  <meta http-equiv="pragma" content="no-cache" />
+  <meta http-equiv="cache-control" content="no-cache" />
+  <meta charset="UTF-8" />
+  <meta name="viewport"
+    content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, minimal-ui" />
+  <meta name="theme-color" content="#008fd5" />
+  <meta name="apple-mobile-web-app-title" content="Astrea Web" />
+  <meta name="apple-mobile-web-app-status-bar-style" content="#008fd5" />
+  <meta name="mobile-web-app-capable" content="yes" />
+  <meta name="robots" content="noindex" />
+  <meta name="detectify-verification" content="2df5d13551dd51d32036967fb4a8aee6" />
+  <script src="https://tally.so/widgets/embed.js"></script>
+
+  <!-- Title & FavIcon -->
+  <title>Astrea</title>
+  <meta name="description"
+    content="O Astrea é um software para escritórios de advocacia e advogados desenvolvido pela Aurum. Acesse a sua conta!" />
+  <link data-rev rel="shortcut icon" href="favicon.ico?v=3f66f836" />
+
+  <link rel="manifest" href="manifest.json" />
+  <link rel="apple-touch-icon" href="icons/touch-icon-128.png" />
+  <link rel="apple-touch-icon" sizes="152x152" href="icons/touch-icon-152.png" />
+  <link rel="apple-touch-icon" sizes="180x180" href="icons/touch-icon-180.png" />
+  <link rel="apple-touch-icon" sizes="167x167" href="icons/touch-icon-167.png" />
+
+  <link data-rev rel="stylesheet" href="css/vendors.min.css?v=4f52a693" />
+  <link data-rev rel="stylesheet" href="css/styles.min.css?v=885b8de3" />
+  <link data-rev rel="stylesheet" href="css/print.css?v=74570108" media="print" />
+  <!--
+		<link href="https://fonts.googleapis.com/css?family=Handlee|Nunito+Sans:400,400i,700,800" rel="preload stylesheet"> -->
+	<link rel="stylesheet" href="https://use.typekit.net/hmy1tcp.css">
+	<!-- build:removeDev -->
+	<!-- start Upscope -->
+	<script>
+		// This will initiate Upscope connection. It's important it is added to all pages, even when the user is not logged in.
+		(function (w, u, d) { var i = function () { i.c(arguments) }; i.q = []; i.c = function (args) { i.q.push(args) }; var l = function () { var s = d.createElement('script'); s.type = 'text/javascript'; s.async = true; s.src = 'https://code.upscope.io/LGDv6kK43XoZayFbJVQEzFnf.js'; var x = d.getElementsByTagName('script')[0]; x.parentNode.insertBefore(s, x); }; if (typeof u !== "function") { w.Upscope = i; l(); } })(window, window.Upscope, document);
+	</script>
+	<!-- end Upscope -->
+	<!-- endbuild -->
+	<!-- start Mixpanel -->
+	<script type="text/javascript">
+		(function (e, a) {
+			if (!a.__SV) {
+				var b = window; try { var c, l, i, j = b.location, g = j.hash; c = function (a, b) { return (l = a.match(RegExp(b + "=([^&]*)"))) ? l[1] : null }; g && c(g, "state") && (i = JSON.parse(decodeURIComponent(c(g, "state"))), "mpeditor" === i.action && (b.sessionStorage.setItem("_mpcehash", g), history.replaceState(i.desiredHash || "", e.title, j.pathname + j.search))) } catch (m) { } var k, h; window.mixpanel = a; a._i = []; a.init = function (b, c, f) {
+					function e(b, a) { var c = a.split("."); 2 == c.length && (b = b[c[0]], a = c[1]); b[a] = function () { b.push([a].concat(Array.prototype.slice.call(arguments, 0))) } } var d = a; "undefined" !== typeof f ? d = a[f] = [] : f = "mixpanel"; d.people = d.people || []; d.toString = function (b) { var a = "mixpanel"; "mixpanel" !== f && (a += "." + f); b || (a += " (stub)"); return a }; d.people.toString = function () { return d.toString(1) + ".people (stub)" }; k = "disable time_event track track_pageview track_links track_forms register register_once alias unregister identify name_tag set_config reset people.set people.set_once people.unset people.increment people.append people.union people.track_charge people.clear_charges people.delete_user".split(" ");
+					for (h = 0; h < k.length; h++)e(d, k[h]); a._i.push([b, c, f])
+				}; a.__SV = 1.2; b = e.createElement("script"); b.type = "text/javascript"; b.async = !0; b.src = "undefined" !== typeof MIXPANEL_CUSTOM_LIB_URL ? MIXPANEL_CUSTOM_LIB_URL : "file:" === e.location.protocol && "//cdn.mxpnl.com/libs/mixpanel-2-latest.min.js".match(/^\/\//) ? "https://cdn.mxpnl.com/libs/mixpanel-2-latest.min.js" : "//cdn.mxpnl.com/libs/mixpanel-2-latest.min.js"; c = e.getElementsByTagName("script")[0]; c.parentNode.insertBefore(b, c)
+			}
+		})(document, window.mixpanel || []);
+		mixpanel.init("5bac3074032a1f7233ae026b2c516cd0", {
+      api_host: "https://api.mixpanel.com",
+      persistence: "localStorage",
+      record_mask_text_selector: "*",
+      record_block_selector: ".sensitive-data, [data-private]",
+      record_heatmap_data: true,
+      record_sessions_percent: 0
+     });
+	</script>
+	<!-- end Mixpanel -->
+	<!-- Start Intercom -->
+	<script>
+		(function () {
+			var w = window; var ic = w.Intercom;
+			if (typeof ic === "function") {
+				ic('reattach_activator');
+				ic('update', intercomSettings);
+			}
+			else {
+				var d = document;
+				var i = function () { i.c(arguments) }; i.q = []; i.
+					c = function (args) { i.q.push(args) }; w.Intercom = i;
+				function l() {
+					var s = d.createElement('script');
+					s.type = 'text/javascript'; s.async = true;
+					s.src = 'https://widget.intercom.io/widget/ou59l8iq';
+					var x = d.getElementsByTagName('script')[0]; x.parentNode.insertBefore(s, x);
+				}
+				if (w.attachEvent) { w.attachEvent('onload', l); }
+				else { w.addEventListener('load', l, false); }
+			}
+		})()
+	</script>
+	<!-- End Intercom -->
+	 	<!-- Hotjar Tracking Code for Site 5275849 (nome ausente) -->
+	<script>
+		(function (h, o, t, j, a, r) {
+			h.hj = h.hj || function () { (h.hj.q = h.hj.q || []).push(arguments) };
+			h._hjSettings = { hjid: 5275849, hjsv: 6 };
+			a = o.getElementsByTagName('head')[0];
+			r = o.createElement('script'); r.async = 1;
+			r.src = t + h._hjSettings.hjid + j + h._hjSettings.hjsv;
+			a.appendChild(r);
+		})(window, document, 'https://static.hotjar.com/c/hotjar-', '.js?sv=');
+	</script>
+     <!-- Start VWO Async SmartCode -->
+	<link rel="preconnect" href="https://dev.visualwebsiteoptimizer.com" />
+	<script type='text/javascript' id='vwoCode'>
+		window._vwo_code || (function () {
+			var account_id = 1028359,
+				version = 2.1,
+				settings_tolerance = 2000,
+				hide_element = 'body',
+				hide_element_style = 'opacity:0 !important;filter:alpha(opacity=0) !important;background:none !important;transition:none !important;',
+				/* DO NOT EDIT BELOW THIS LINE */
+				f = false, w = window, d = document, v = d.querySelector('#vwoCode'), cK = '_vwo_' + account_id + '_settings', cc = {}; try { var c = JSON.parse(localStorage.getItem('_vwo_' + account_id + '_config')); cc = c && typeof c === 'object' ? c : {} } catch (e) { } var stT = cc.stT === 'session' ? w.sessionStorage : w.localStorage; code = { nonce: v && v.nonce, use_existing_jquery: function () { return typeof use_existing_jquery !== 'undefined' ? use_existing_jquery : undefined }, library_tolerance: function () { return typeof library_tolerance !== 'undefined' ? library_tolerance : undefined }, settings_tolerance: function () { return cc.sT || settings_tolerance }, hide_element_style: function () { return '{' + (cc.hES || hide_element_style) + '}' }, hide_element: function () { if (performance.getEntriesByName('first-contentful-paint')[0]) { return '' } return typeof cc.hE === 'string' ? cc.hE : hide_element }, getVersion: function () { return version }, finish: function (e) { if (!f) { f = true; var t = d.getElementById('_vis_opt_path_hides'); if (t) t.parentNode.removeChild(t); if (e) (new Image).src = 'https://dev.visualwebsiteoptimizer.com/ee.gif?a=' + account_id + e } }, finished: function () { return f }, addScript: function (e) { var t = d.createElement('script'); t.type = 'text/javascript'; if (e.src) { t.src = e.src } else { t.text = e.text } v && t.setAttribute('nonce', v.nonce); d.getElementsByTagName('head')[0].appendChild(t) }, load: function (e, t) { var n = this.getSettings(), i = d.createElement('script'), r = this; t = t || {}; if (n) { i.textContent = n; d.getElementsByTagName('head')[0].appendChild(i); if (!w.VWO || VWO.caE) { stT.removeItem(cK); r.load(e) } } else { var o = new XMLHttpRequest; o.open('GET', e, true); o.withCredentials = !t.dSC; o.responseType = t.responseType || 'text'; o.onload = function () { if (t.onloadCb) { return t.onloadCb(o, e) } if (o.status === 200 || o.status === 304) { _vwo_code.addScript({ text: o.responseText }) } else { _vwo_code.finish('&e=loading_failure:' + e) } }; o.onerror = function () { if (t.onerrorCb) { return t.onerrorCb(e) } _vwo_code.finish('&e=loading_failure:' + e) }; o.send() } }, getSettings: function () { try { var e = stT.getItem(cK); if (!e) { return } e = JSON.parse(e); if (Date.now() > e.e) { stT.removeItem(cK); return } return e.s } catch (e) { return } }, init: function () { if (d.URL.indexOf('__vwo_disable__') > -1) return; var e = this.settings_tolerance(); w._vwo_settings_timer = setTimeout(function () { _vwo_code.finish(); stT.removeItem(cK) }, e); var t; if (this.hide_element() !== 'body') { t = d.createElement('style'); var n = this.hide_element(), i = n ? n + this.hide_element_style() : '', r = d.getElementsByTagName('head')[0]; t.setAttribute('id', '_vis_opt_path_hides'); v && t.setAttribute('nonce', v.nonce); t.setAttribute('type', 'text/css'); if (t.styleSheet) t.styleSheet.cssText = i; else t.appendChild(d.createTextNode(i)); r.appendChild(t) } else { t = d.getElementsByTagName('head')[0]; var i = d.createElement('div'); i.style.cssText = 'z-index: 2147483647 !important;position: fixed !important;left: 0 !important;top: 0 !important;width: 100% !important;height: 100% !important;background: white !important;display: block !important;'; i.setAttribute('id', '_vis_opt_path_hides'); i.classList.add('_vis_hide_layer'); t.parentNode.insertBefore(i, t.nextSibling) } var o = window._vis_opt_url || d.URL, s = 'https://dev.visualwebsiteoptimizer.com/j.php?a=' + account_id + '&u=' + encodeURIComponent(o) + '&vn=' + version; if (w.location.search.indexOf('_vwo_xhr') !== -1) { this.addScript({ src: s }) } else { this.load(s + '&x=true') } } }; w._vwo_code = code; code.init();
+		})();
+	</script>
+	<!-- End VWO Async SmartCode -->
+
+  <!-- Datadog RUM -->
+  <script src="./dataDogConfig.js"></script>
+  <script>
+    (function (h, o, u, n, d) {
+      h = h[d] = h[d] || { q: [], onReady: function (c) { h.q.push(c) } }
+      d = o.createElement(u); d.async = 1; d.src = n; d.crossOrigin = ''
+      n = o.getElementsByTagName(u)[0]; n.parentNode.insertBefore(d, n)
+    })(window, document, 'script', 'https://www.datadoghq-browser-agent.com/us5/v7/datadog-rum.js', 'DD_RUM')
+    window.DD_RUM.onReady(function () {
+      var config = getDataDogConfig();
+      window.DD_RUM.init(config);
+    })
+  </script>
+</head>
+
+<body id="refac">
+  <!-- TODO: Deixar comentado até o final da POC da dataDog -->
+  <!-- <script src="./faroConfig.js"></script>
+  <script>
+    (function () {
+      var webOtlpTransport = document.createElement("script");
+      webOtlpTransport.async = false;
+      webOtlpTransport.src = "https://unpkg.com/@grafana/faro-transport-otlp-http@^1.11.0/dist/bundle/faro-transport-otlp-http.iife.js";
+      document.head.appendChild(webOtlpTransport);
+  
+      var webSdkScript = document.createElement("script");
+      webSdkScript.async = false;
+      webSdkScript.src = "https://unpkg.com/@grafana/faro-web-sdk@^1.11.0/dist/bundle/faro-web-sdk.iife.js";
+      document.head.appendChild(webSdkScript);
+  
+      var webTracingScript = document.createElement("script");
+      webTracingScript.async = false;
+      webTracingScript.src = "https://unpkg.com/@grafana/faro-web-tracing@^1.11.0/dist/bundle/faro-web-tracing.iife.js";
+      document.head.appendChild(webTracingScript);
+  
+      webSdkScript.onload = function () {
+        var config = getFaroConfig();
+  
+        var transport;
+        if (config.appEnvironment === "local") {
+          transport = new window.GrafanaFaroWebSdk.ConsoleTransport();
+        } else {
+          transport = new window.GrafanaFaroTransportOtlpHttp.OtlpHttpTransport({
+            logsURL: config.logsURL,
+            tracesURL: config.tracesURL,
+          });
+        }
+  
+        new window.GrafanaFaroWebSdk.initializeFaro({
+          ignoreUrls: config.ignoreUrls,
+          app: {
+            name: "astrea-angular",
+            version: "1.0.0",
+            namespace: config.appEnvironment,
+          },
+          sessionTracking: {
+            sampler() {
+              const sampleRate = Number(config.samplingRate);
+              return sampleRate;
+            }
+          },
+          isolate: true,
+          transports: [transport], 
+        });
+      };
+  
+      function tryAddTracingInstrumentation(retries = 5) {
+        if (window.GrafanaFaroWebSdk && window.GrafanaFaroWebTracing) {
+          window.GrafanaFaroWebSdk.faro.instrumentations
+            .add(new window.GrafanaFaroWebTracing.TracingInstrumentation());
+        } else if (retries > 0) {
+          setTimeout(() => tryAddTracingInstrumentation(retries - 1), 1000);
+        } else {
+          console.error("Failed to load Tracing Instrumentation.");
+        }
+      }
+  
+      webTracingScript.onload = function () {
+        tryAddTracingInstrumentation();
+      };
+    })();
+  </script> -->
+
+  <ui-view class="app-wrapper" ng-controller="appController"></ui-view>
+  <script data-rev src="js/vendors.min.js?v=2e8a1311" defer></script>
+  <!-- build:files -->
+  <script data-rev src="js/all.min.js?v=0a29211e" defer></script>
+  <script data-rev src="js/languages.js?v=175a9bcd" defer></script>
+  <!-- endbuild -->
+
+  <!-- <script src="/_ah/channel/jsapi" defer></script> -->
+  <!-- Init -->
+  <script>
+    function init() {
+      var $injector = angular.bootstrap(document, ['astreaApp']);
+      window.initRoot();
+    }
+  </script>
+
+
+
+  <!-- Gapi -->
+  <script src="https://apis.google.com/js/client.js?onload=init" defer></script>
+  <!--<script src="/apis.google.js?onload=init"></script>-->
+
+  <!--
+			yyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyy
+			yyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyy
+			yyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyy
+			yyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyy
+			yyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyy
+			yyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyy
+			yyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyy
+			yyyyyyyyyyyyyyyyyssssssssssssssssyyyyyyyyyyyyyyyyy
+			yyyyyyyyyyyyyyyyo````````````````oyyyyyyyyyyyyyyyy
+			yyyyyyyyyyyyyyyyo                oyyyyyyyyyyyyyyyy
+			yyyyyyyyyyyyyyyyo                oyyyyyyyyyyyyyyyy
+			yyyyyyyyyyyyyyyyo                oyyyyyyyyyyyyyyyy
+			yyyyyyyyyyyyyyyyo                oyyyyyyyyyyyyyyyy
+			yyyyyyyyyyyyyyyyo                oyyyyyyyyyyyyyyyy
+			yyyyyyyyyyyyyyyyo                oyyyyyyyyyyyyyyyy
+			yyyyyyyyyyyyyyyyo````````````````+ssssssssssssssss
+			yyyyyyyyyyyyyyyyyssssssssssssssss:````````````````
+			yyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyy-
+			yyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyy-
+			yyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyy-
+			yyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyy-
+			yyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyy-
+			yyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyy-
+			yyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyy-
+
+			Você parece ser uma pessoa curiosa e esforçada. Exatamente o tipo de pessoas que procuramos para trabalhar junto. Caso tenha interesse envie o seu CV para curriculos@aurum.com.br :)
+
+		-->
+
+  <!-- Templates -->
+  <!-- Suggest - Standard Template -->
+  <script type="text/ng-template" id="template/typeahead/typeahead-match.html">
+      <a class="matching" tabindex="-1" bind-html-unsafe="'<span ng-show=\'false\'>'+ match.model.typeName + '</span> <span> ' + (match.model.type === 'ADD_ITEM' ? 'Adicionar ' : '') + (match.label | typeaheadHighlight:query)+ '</span>'"></a>
+    </script>
+
+  <script type="text/ng-template" id="template/typeahead/typeahead-popup.html">
+      <ul class="suggest-list" ng-class="{'suggest-w-type': matches.length > 0 && matches[0].model.typeName.length > 0 }" ng-style="{display: isOpen()&&'block' || 'none', top: position.top+'px', left: position.left+'px'}"><li ng-repeat="match in matches" ng-class="{active: isActive($index), 'add-matching': match.model.type === 'ADD_ITEM'}" ng-mouseenter="selectActive($index)" ng-click="selectMatch($index)"><div st-typeahead-match index="$index" match="match" query="query"></div></li></ul>
+    </script>
+
+  <!-- Suggest  Case - Custom Template -->
+  <script type="text/ng-template" id="template/casetypeahead.html">
+      <div in-view="mustShow = $inview">
+      	<div ng-show="mustShow">
+      		<a class="matching" tabindex="-1" bind-html-unsafe="::('<div><span> ' + (match.label | typeaheadHighlight:query)+ '</span></div>')">
+      		</a>
+      		<a class="matching" ng-show="::(match.model.lawsuitNumber != null)" tabindex="-1" bind-html-unsafe="::('<div><span> ' + (match.model.lawsuitNumber | typeaheadHighlight:query)+ '</span></div>')">
+      		</a>
+      		<span ng-show="::(match.model.file != null)" tabindex="-1" bind-html-unsafe="::('<div><span class=\'alt\'> ' + (match.model.file | typeaheadHighlight:query)+ '</span></div>')">
+      		</span>
+      		<span ng-show="::(match.model.customerName != null)" tabindex="-1" bind-html-unsafe="::('<div><span class=\'alt\'> ' + (match.model.customerName | typeaheadHighlight:query)+ '</span></div>')">
+      		</span>
+      		<span ng-show="::(match.model.firstStakeholderName != null)" tabindex="-1" bind-html-unsafe="::('<div><span class=\'alt\'> ' + (match.model.firstStakeholderName | typeaheadHighlight:query)+ '</span></div>')">
+      		</span>
+      	</div>
+      <div>
+    </script>
+
+  <!-- Suggest Responsible - Custom Template -->
+  <script type="text/ng-template" id="template/responsibletypeahead.html">
+      <a class="matching" tabindex="-1" bind-html-unsafe="'<div><span> ' + (match.label | typeaheadHighlight:query)+ '</span></div>'">
+      </a>
+      <span ng-show="match.model.email != null" tabindex="-1" bind-html-unsafe="'<div><span class=\'alt\'> ' + (match.model.email | typeaheadHighlight:query)+ '</span></div>'">
+      </span>
+    </script>
+
+  <!-- Datepicker -->
+  <script type="text/ng-template" id="template/datepicker/datepicker.html">
+      <div ng-switch="datepickerMode" role="application" ng-keydown="keydown($event)"><daypicker ng-switch-when="day" tabindex="0"></daypicker></div>
+    </script>
+  <script type="text/ng-template" id="template/datepicker/popup.html">
+      <div class="datepicker" ng-style="{display: (isOpen && 'block') || 'none', top: position.top+'px', left: position.left+'px'}" ng-keydown="keydown($event)" ng-transclude></div>
+    </script>
+  <script type="text/ng-template" id="template/datepicker/day.html">
+      <div><table cellspacing="0"><thead><tr class="datepicker-months"><th><i class="fa fa-angle-double-left" ng-click="move(-1)"></i></th><th colspan="{{rows[0].length - 2 + showWeekNumbers}}"><strong>{{title}}</strong></th><th><i class="fa fa-angle-double-right" ng-click="move(1)"></i></th></tr><tr class="datepicker-weeks" ng-show="labels.length > 0"><th ng-repeat="label in labels track by $index">{{label.abbr}}</th></tr></thead><tbody class="datepicker-days"><tr ng-repeat="row in rows"><td ng-repeat="dt in row" ng-class="{'btn-info': dt.selected}"><button type="button" style="width:100%;" ng-click="select(dt.date)" ng-disabled="dt.disabled"><span ng-class="{'text-muted': dt.secondary, 'text-info': dt.current}">{{dt.label}}</span></button></td></tr></tbody><table></div>
+    </script>
+
+  <!-- Modal -->
+  <script type="text/ng-template" id="template/modal/backdrop.html">
+      <div class="overlay"></div>
+    </script>
+  <script type="text/ng-template" id="template/modal/window.html">
+      <div id="modalWrapper" class="modal-wrapper" ng-class="{ 'loading': false }" ng-transclude></div>
+    </script>
+
+  <!-- Tooltip -->
+  <script type="text/ng-template" id="template/tooltip/tooltip-popup.html">
+      <div id="tooltipTest" class="tooltip {{placement}}" ng-class="{ 'in': isOpen(), 'tooltip-alt': animation() }"><div class="tooltip-arrow"></div><div class="tooltip-inner" ng-bind="content"></div></div>
+    </script>
+
+  <!-- Bank Suggest -->
+  <script type="text/ng-template" id="template/banktypeahead.html">
+      <div in-view="mustShow = $inview">
+      	<div ng-show="::mustShow">
+      		<a class="matching" ng-show="::(match.model.code != null)" tabindex="-1" bind-html-unsafe="::('<div><span> ' + (match.model.code | typeaheadHighlight:query)+' '+(match.label | typeaheadHighlight:query)+'</span></div>')"></a>
+      		<a class="matching" ng-hide="::(match.model.code != null)" tabindex="-1" bind-html-unsafe="::('<div><span> ' + (match.label | typeaheadHighlight:query)+ '</span></div>')"></a>
+      	</div>
+      <div>
+    </script>
+
+  <!--
+
+	each component in html and that subfolders
+
+	<script type='text/ng-template' id='" + path + "'>" + readFileContent(file) + "</script>"
+
+
+-->
+
+</body>
+
+</html>

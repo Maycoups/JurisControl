@@ -5,9 +5,11 @@
   "main": "main.js",
   "scripts": {
     "start": "electron .",
-    "dist": "electron-builder --win"
+    "dist": "electron-builder --win",
+    "lint": "node scripts/lint.mjs"
   },
   "devDependencies": {
+    "@babel/standalone": "^8.0.4",
     "electron": "^29.0.0",
     "electron-builder": "^24.13.3"
   },
@@ -21,7 +23,9 @@
       "package.json"
     ],
     "win": {
-      "target": ["nsis"],
+      "target": [
+        "nsis"
+      ],
       "artifactName": "${productName}-Setup-${version}.${ext}"
     },
     "nsis": {

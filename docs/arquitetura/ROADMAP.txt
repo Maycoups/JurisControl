@@ -1,0 +1,85 @@
+JURISCONTROL — ROADMAP DE VERSOES
+Escrito em: agosto de 2026, na rodada de organizacao geral do projeto.
+Formalizado a partir do roadmap definido pelo dono do produto.
+
+Convencao: [ ] fase nao iniciada | [~] fase atual | [x] fase concluida
+
+
+PROJETO BETA
+============
+
+[~] BETA 1.0 — "exatamente como esta agora"
+    Escopo: base funcional completa ja construida ate esta rodada —
+    autenticacao com convite obrigatorio, dados na nuvem (Supabase,
+    isolados por usuario via RLS), integracao real com TJRJ (DJEN + eproc)
+    e DataJud (CNJ), assistente de IA com 3 provedores (Gemini gratis,
+    Claude e ChatGPT via chave propria), gerador de documentos com modelos
+    proprios, controle financeiro, kanban de processos, tema claro/escuro.
+    Limitacoes conhecidas e aceitas nesta fase: jurisprudencia de STF/STJ/
+    outros tribunais e simulada (so TJRJ e real); sem testes automatizados.
+    Publico: 1 usuaria piloto (Dra. Camila Gomes Nunes).
+    Saida da fase: versao publicada no Vercel, em uso real, sem bloqueios
+    de acesso a dados/funcionalidades essenciais do dia a dia.
+
+[ ] BETA 1.5 — melhorias de funcionalidades, IA e novo design
+    Escopo previsto: refinar o que o uso real da Beta 1.0 revelar como
+    necessario; possivel evolucao do design (projeto de UI/UX separado,
+    ver abaixo); melhorias na integracao com IA.
+    Criterio de entrada: Beta 1.0 em uso real por tempo suficiente pra
+    gerar feedback pratico (bugs, atrito de uso, funcionalidades faltando).
+    Criterio de saida: [A DEFINIR]
+
+[ ] BETA 2.0 — agentes de IA, mais ferramentas, mais provedores de IA,
+    inicio de testes com ate 10 advogados
+    Escopo previsto: agentes de IA diversos (nao so geracao de texto sob
+    demanda); ampliacao do conjunto de ferramentas do sistema; ampliar/
+    melhorar conexao com diferentes provedores de IA; abrir para ate 10
+    advogados em teste.
+    Criterio de entrada: Beta 1.5 estavel.
+    Criterio de saida: [A DEFINIR]
+
+
+PROJETO ALFA
+============
+
+[ ] ALFA 2 — versao definitiva do produto
+    Escopo previsto: modelo de IA e sistema de agentes completo, testado e
+    finalizado; equipe tecnica de 2 programadores; inicio de testes com
+    ate 50 advogados.
+    Criterio de entrada: Beta 2.0 validada com o grupo de 10 advogados.
+    Criterio de saida: [A DEFINIR]
+
+[ ] ALFA 3 — escala
+    Escopo previsto: capacidade para ate 1000 advogados.
+    Criterio de entrada: Alfa 2 validada com o grupo de 50 advogados,
+    infraestrutura (banco, Edge Functions, cotas de IA) revisada pra
+    suportar o salto de escala.
+    Criterio de saida: [A DEFINIR]
+
+
+PROJETO OFICIAL
+===============
+
+[ ] Lancamento oficial — [A DEFINIR: escopo, criterios, data alvo]
+
+
+TRILHA PARALELA (nao bloqueia as fases acima)
+==============================================
+
+[ ] Projeto de UI/UX separado — iniciar um projeto proprio de design
+    (fora do ciclo de desenvolvimento de feature), pra sustentar a
+    evolucao visual prevista a partir da Beta 1.5.
+
+
+NOTAS
+=====
+
+- "O que voce (dono do produto) fara agora": revisar o codigo desta rodada
+  de organizacao. Um segundo programador vai acompanhar/monitorar o
+  funcionamento em uso real e produzir a documentacao do processo de
+  atualizacao continua — a decisao de colocar de fato em producao (visao
+  ampla, nao so o deploy tecnico) fica pra quando a Beta 1.0 evoluir pra
+  versao 2 do processo, nao antes.
+- Ver docs/arquitetura/ARQUITETURA.md pro checklist tecnico exato de deploy
+  da Beta 1.0 no Vercel (o que falta e infraestrutura de deploy, nao
+  codigo).

@@ -6,3 +6,8 @@ node_modules/
 .vscode/
 supabase/.temp/
 dist/
+
+# Dataset bruto (zips/JSON) de uma pesquisa em andamento sobre jurisprudência
+# do STF — matéria-prima, não código nem documentação. Ver
+# docs/arquitetura/ARQUITETURA.md.
+pesquisa-stf-dados-abertos/

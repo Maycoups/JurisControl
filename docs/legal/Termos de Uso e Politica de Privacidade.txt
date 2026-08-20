@@ -1,0 +1,43 @@
+JurisControl - Termos de Uso e Política de Privacidade
+Conformidade com a Lei Geral de Proteção de Dados (Lei nº 13.709/2018 - LGPD)
+1. Termos de Uso
+1.1. Aceitação dos Termos
+Ao acessar ou utilizar a plataforma JurisControl ("Software"), o usuário ("Advogado" ou "Usuário") concorda expressamente com os presentes Termos de Uso. O uso contínuo da plataforma caracteriza a aceitação plena e sem reservas de todas as condições aqui estabelecidas.
+1.2. Objeto e Licença de Uso
+O JurisControl é um software de gestão jurídica voltado para advogados e escritórios independentes, oferecendo funcionalidades de acompanhamento processual, gestão de clientes, controle financeiro e integração com APIs públicas de tribunais (como TJRJ e DataJud/CNJ). O Software é concedido sob licença de uso limitada, não exclusiva, revogável e intransferível.
+1.3. Responsabilidades do Usuário
+Manter o sigilo de suas credenciais de acesso (e-mail, senha e tokens de API).
+Garantir a veracidade e legalidade dos dados de clientes e processos inseridos no sistema.
+Utilizar as integrações de consulta pública (TJRJ/DataJud) em estrita observância à legislação vigente e aos limites éticos da OAB.
+1.4. Limitação de Responsabilidade
+O JurisControl atua como ferramenta auxiliar de gestão e consulta. O Software não substitui a conferência oficial dos prazos e andamentos nos diários oficiais e sistemas dos tribunais, cabendo exclusivamente ao Usuário a responsabilidade pelo cumprimento de seus prazos processuais.
+2. Política de Privacidade (LGPD)
+2.1. Papéis na Proteção de Dados
+Nos termos da Lei nº 13.709/2018 (LGPD):
+Controlador: O Usuário (Advogado ou Escritório) em relação aos dados pessoais de seus clientes inseridos na plataforma.
+Operador: O JurisControl, que processa os dados em nome do Controlador para prestar os serviços contratados.
+2.2. Categorias de Dados Tratados e Finalidades
+Categoria de Dado
+Dados Coletados
+Base Legal (LGPD)
+Finalidade do Tratamento
+ 
+Dados do Advogado
+Nome, CPF, OAB/UF, e-mail, senha criptografada
+Execução de Contrato (Art. 7º, V)
+Autenticação, gestão da conta e liberação de acesso às funcionalidades.
+Dados dos Clientes
+Nome, CPF/CNPJ, e-mail, telefone, contrato
+Execução de Contrato / Cumprimento de Obrigação Legal
+Gestão de carteira de clientes, vinculação a processos e emissão de alertas.
+Dados Processuais
+Número CNJ, classe, assunto, órgão julgador, histórico
+Exercício Regular de Direitos / Dados Públicos (Art. 7º, VI)
+Exibição no painel de controle, monitoramento e geração de documentos.
+
+2.3. Segurança e Armazenamento dos Dados
+Todos os dados são armazenados em infraestrutura segura com encriptação em trânsito (TLS/HTTPS) e em repouso. O acesso à base de dados é protegido por políticas de Row Level Security (RLS), garantindo que cada Usuário acesse estritamente os seus próprios registros.
+2.4. Direitos dos Titulares de Dados
+Os titulares dos dados têm o direito de solicitar a confirmação do tratamento, acesso, correção, anonimização, eliminação ou portabilidade de seus dados pessoais, mediante solicitação formal ao Encarregado pelo Tratamento de Dados (DPO) da plataforma.
+2.5. Alterações nesta Política
+Esta Política pode ser atualizada periodicamente para refletir melhorias no sistema ou adequações regulatórias. Notificações sobre alterações relevantes serão enviadas aos Usuários cadastrados.

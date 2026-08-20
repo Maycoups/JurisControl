@@ -1,0 +1,202 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<title>JurisControl — como gerar sua chave</title>
+<style>
+  :root{
+    --bg:#0f1210;
+    --panel:#161b18;
+    --card:#1c2320;
+    --line:rgba(255,255,255,0.08);
+    --text:#eef1ef;
+    --muted:#8b968f;
+    --accent:#c9a24b;
+  }
+  *{box-sizing:border-box;}
+  body{
+    margin:0;
+    background:var(--bg);
+    font-family:'Georgia','Iowan Old Style',serif;
+    color:var(--text);
+    display:flex;
+    justify-content:center;
+    padding:32px 16px;
+  }
+  .phone{
+    width:380px;
+    background:var(--panel);
+    border-radius:28px;
+    border:1px solid var(--line);
+    padding:20px;
+  }
+  .topbar{
+    display:flex;
+    align-items:center;
+    gap:10px;
+    margin-bottom:14px;
+    font-family:sans-serif;
+  }
+  .back{color:var(--muted); font-size:18px; cursor:default;}
+  .title{font-family:'Times New Roman',serif; font-size:17px; font-weight:600;}
+
+  .tabs{
+    display:flex;
+    gap:6px;
+    background:var(--card);
+    border:1px solid var(--line);
+    border-radius:10px;
+    padding:4px;
+    margin-bottom:18px;
+  }
+  .tab{
+    flex:1;
+    text-align:center;
+    padding:8px 4px;
+    border-radius:7px;
+    font-family:sans-serif;
+    font-size:12px;
+    color:var(--muted);
+    cursor:pointer;
+  }
+  .tab.active{background:var(--accent); color:#1a1408; font-weight:600;}
+
+  .steps{display:flex; flex-direction:column; gap:12px; margin-bottom:16px;}
+  .step{
+    display:flex;
+    gap:12px;
+    background:var(--card);
+    border:1px solid var(--line);
+    border-radius:12px;
+    padding:14px;
+  }
+  .num{
+    width:24px;height:24px;
+    border-radius:50%;
+    background:var(--accent);
+    color:#1a1408;
+    font-family:sans-serif;
+    font-weight:700;
+    font-size:12px;
+    display:flex;align-items:center;justify-content:center;
+    flex:0 0 auto;
+  }
+  .step-body h4{
+    margin:0 0 4px;
+    font-family:sans-serif;
+    font-size:13.5px;
+    font-weight:600;
+    color:var(--text);
+  }
+  .step-body p{
+    margin:0;
+    font-family:sans-serif;
+    font-size:12px;
+    color:var(--muted);
+    line-height:1.5;
+  }
+
+  .linkbtn{
+    width:100%;
+    display:flex;
+    align-items:center;
+    justify-content:center;
+    gap:8px;
+    padding:12px;
+    border-radius:10px;
+    border:1px solid var(--accent);
+    background:transparent;
+    color:var(--accent);
+    font-family:sans-serif;
+    font-size:13px;
+    font-weight:600;
+    cursor:pointer;
+    margin-bottom:10px;
+  }
+
+  .note{
+    font-family:sans-serif;
+    font-size:11px;
+    color:var(--muted);
+    display:flex;
+    gap:6px;
+    align-items:flex-start;
+    margin-top:4px;
+  }
+</style>
+</head>
+<body>
+
+<div class="phone">
+  <div class="topbar">
+    <span class="back">&#8592;</span>
+    <span class="title">Como gerar sua chave</span>
+  </div>
+
+  <div class="tabs">
+    <div class="tab active" data-p="claude">Claude</div>
+    <div class="tab" data-p="gpt">ChatGPT</div>
+    <div class="tab" data-p="gemini">Gemini</div>
+  </div>
+
+  <div class="steps" id="steps"></div>
+
+  <button class="linkbtn" id="openConsole">&#8599; Abrir console do provedor</button>
+  <p class="note">💡 A chave só aparece uma vez no site do provedor — copie e cole aqui assim que gerar.</p>
+</div>
+
+<script>
+  const data = {
+    claude: {
+      console: "console.anthropic.com",
+      steps: [
+        ["Acesse o console da Anthropic", "Entre em console.anthropic.com com sua conta (crie uma se ainda não tiver)."],
+        ["Vá em API Keys", "No menu lateral, abra a seção de chaves de API."],
+        ["Crie e copie a chave", "Clique em criar nova chave, dê um nome e copie o valor gerado (começa com sk-ant-)."]
+      ]
+    },
+    gpt: {
+      console: "platform.openai.com",
+      steps: [
+        ["Acesse a plataforma da OpenAI", "Entre em platform.openai.com com sua conta."],
+        ["Vá em API Keys", "No menu de configurações, abra a seção de chaves de API."],
+        ["Crie e copie a chave", "Clique em criar nova chave secreta e copie o valor (começa com sk-)."]
+      ]
+    },
+    gemini: {
+      console: "aistudio.google.com",
+      steps: [
+        ["Acesse o Google AI Studio", "Entre em aistudio.google.com com sua conta Google."],
+        ["Vá em Get API key", "Clique na opção de obter chave de API no menu."],
+        ["Crie e copie a chave", "Clique em criar chave, escolha o projeto e copie o valor gerado."]
+      ]
+    }
+  };
+
+  const stepsEl = document.getElementById('steps');
+  const consoleBtn = document.getElementById('openConsole');
+
+  function render(p) {
+    stepsEl.innerHTML = '';
+    data[p].steps.forEach((s, i) => {
+      const div = document.createElement('div');
+      div.className = 'step';
+      div.innerHTML = `<div class="num">${i+1}</div><div class="step-body"><h4>${s[0]}</h4><p>${s[1]}</p></div>`;
+      stepsEl.appendChild(div);
+    });
+    consoleBtn.textContent = '↗ Abrir ' + data[p].console;
+  }
+
+  document.querySelectorAll('.tab').forEach(t => {
+    t.onclick = () => {
+      document.querySelectorAll('.tab').forEach(x => x.classList.remove('active'));
+      t.classList.add('active');
+      render(t.getAttribute('data-p'));
+    };
+  });
+
+  render('claude');
+</script>
+
+</body>
+</html>

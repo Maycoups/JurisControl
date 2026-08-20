@@ -1,0 +1,249 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<title>JurisControl — tela inicial</title>
+<style>
+  :root{
+    --bg:#0f1210;
+    --panel:#161b18;
+    --card:#1c2320;
+    --line:rgba(255,255,255,0.08);
+    --text:#eef1ef;
+    --muted:#8b968f;
+    --accent:#c9a24b;
+    --accent-dim:#c9a24b22;
+    --green:#4f9d6e;
+    --green-bg:#4f9d6e1a;
+  }
+  *{box-sizing:border-box;}
+  body{
+    margin:0;
+    background:var(--bg);
+    font-family:'Georgia','Iowan Old Style',serif;
+    color:var(--text);
+    display:flex;
+    justify-content:center;
+    padding:32px 16px;
+  }
+  .phone{
+    width:380px;
+    background:var(--panel);
+    border-radius:28px;
+    border:1px solid var(--line);
+    padding:20px;
+    position:relative;
+  }
+  .brandrow{
+    display:flex;
+    align-items:center;
+    justify-content:space-between;
+    margin-bottom:2px;
+  }
+  .brand{
+    font-family:'Times New Roman',serif;
+    font-weight:600;
+    font-size:19px;
+    letter-spacing:0.3px;
+  }
+  .brand span{color:var(--accent);}
+  .menu{color:var(--muted); font-size:20px; font-family:sans-serif;}
+  .greet{
+    font-family:sans-serif;
+    font-size:13px;
+    color:var(--muted);
+    margin:2px 0 18px;
+  }
+  .status{
+    background:var(--green-bg);
+    border:1px solid rgba(79,157,110,0.35);
+    border-radius:10px;
+    padding:10px 12px;
+    display:flex;
+    align-items:center;
+    gap:8px;
+    margin-bottom:16px;
+    font-family:sans-serif;
+    font-size:12.5px;
+    color:var(--green);
+  }
+  .status .dot{width:6px;height:6px;border-radius:50%;background:var(--green);flex:0 0 auto;}
+  .stats{
+    display:grid;
+    grid-template-columns:1fr 1fr;
+    gap:10px;
+    margin-bottom:18px;
+  }
+  .stat{
+    background:var(--card);
+    border:1px solid var(--line);
+    border-radius:10px;
+    padding:14px 12px;
+    text-align:center;
+  }
+  .stat .num{font-size:22px; font-weight:600; margin:4px 0 0;}
+  .stat .lbl{font-family:sans-serif; font-size:11px; color:var(--muted); margin:0;}
+  button{
+    font-family:sans-serif;
+    font-size:13.5px;
+    border-radius:10px;
+    cursor:pointer;
+    border:1px solid var(--line);
+    width:100%;
+    padding:12px;
+    background:transparent;
+    color:var(--text);
+  }
+  .primary{
+    background:var(--text);
+    color:#12140f;
+    border:none;
+    font-weight:600;
+    margin-bottom:8px;
+  }
+  .connect{
+    display:flex;
+    align-items:center;
+    justify-content:center;
+    gap:8px;
+    border-color:var(--accent);
+    color:var(--accent);
+  }
+  .divider{border-top:1px solid var(--line); margin:16px 0;}
+
+  /* modal */
+  .overlay{
+    position:absolute;
+    inset:0;
+    background:rgba(0,0,0,0.55);
+    display:none;
+    align-items:flex-end;
+    border-radius:28px;
+    padding:14px;
+  }
+  .overlay.open{display:flex;}
+  .sheet{
+    background:var(--panel);
+    border:1px solid var(--line);
+    border-radius:16px;
+    padding:18px;
+    width:100%;
+  }
+  .sheet h3{
+    font-family:'Times New Roman',serif;
+    font-size:16px;
+    margin:0 0 4px;
+  }
+  .sheet p.sub{
+    font-family:sans-serif;
+    font-size:12px;
+    color:var(--muted);
+    margin:0 0 14px;
+  }
+  .provlist{display:flex; flex-direction:column; gap:8px; margin-bottom:14px;}
+  .prov{
+    display:flex;
+    align-items:center;
+    gap:10px;
+    padding:10px 12px;
+    border:1px solid var(--line);
+    border-radius:10px;
+    background:var(--card);
+    cursor:pointer;
+    font-family:sans-serif;
+    font-size:13px;
+    color:var(--text);
+  }
+  .prov.selected{border-color:var(--accent);}
+  .swatch{
+    width:26px;height:26px;border-radius:7px;
+    display:flex;align-items:center;justify-content:center;
+    font-family:sans-serif;font-weight:700;font-size:11px;
+    flex:0 0 auto;
+  }
+  .sw-claude{background:#c9a24b33;color:#e0be6f;}
+  .sw-gpt{background:#ffffff18;color:#d8dbd9;}
+  .sw-gemini{background:#4f9d6e26;color:#7fc79a;}
+  .keyrow{display:none; margin-bottom:12px;}
+  .keyrow.show{display:block;}
+  .keyrow label{font-family:sans-serif; font-size:11.5px; color:var(--muted); display:block; margin-bottom:6px;}
+  .keyrow input{
+    width:100%;
+    background:var(--card);
+    border:1px solid var(--line);
+    border-radius:8px;
+    padding:10px;
+    color:var(--text);
+    font-family:sans-serif;
+    font-size:13px;
+  }
+  .sheet-actions{display:flex; gap:8px;}
+  .sheet-actions button.save{background:var(--accent); color:#1a1408; border:none; font-weight:600;}
+  .hint{
+    font-family:sans-serif; font-size:11px; color:var(--muted);
+    margin:14px 0 0; display:flex; gap:6px; align-items:flex-start;
+  }
+</style>
+</head>
+<body>
+
+<div class="phone">
+  <div class="brandrow">
+    <div class="brand">Juris<span>Control</span></div>
+    <div class="menu">&#9776;</div>
+  </div>
+  <p class="greet">Olá, Maycon</p>
+
+  <div class="status"><span class="dot"></span>IA gratuita ativa · 7 de 10 gerações este mês</div>
+
+  <div class="stats">
+    <div class="stat"><div class="num">24</div><p class="lbl">Processos</p></div>
+    <div class="stat"><div class="num">9</div><p class="lbl">Peças geradas</p></div>
+  </div>
+
+  <button class="primary">+ Gerar nova peça</button>
+  <button class="connect" id="openBtn">&#9889; Conectar sua IA</button>
+
+  <div class="divider"></div>
+  <p class="hint">💡 Sem chave configurada, você continua no plano gratuito com limite mensal de gerações.</p>
+
+  <div class="overlay" id="overlay">
+    <div class="sheet">
+      <h3>Conectar sua IA</h3>
+      <p class="sub">Escolha o provedor e cole sua chave de API. Isso libera gerações ilimitadas, sem custo pra nós.</p>
+
+      <div class="provlist">
+        <div class="prov" data-name="Claude"><div class="swatch sw-claude">C</div>Claude (Anthropic)</div>
+        <div class="prov" data-name="ChatGPT"><div class="swatch sw-gpt">G</div>ChatGPT (OpenAI)</div>
+        <div class="prov" data-name="Gemini"><div class="swatch sw-gemini">G</div>Gemini (Google)</div>
+      </div>
+
+      <div class="keyrow" id="keyrow">
+        <label>Chave de API</label>
+        <input type="password" placeholder="sk-...">
+      </div>
+
+      <div class="sheet-actions">
+        <button id="cancelBtn">Cancelar</button>
+        <button class="save" id="saveBtn">Salvar</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+  const overlay = document.getElementById('overlay');
+  document.getElementById('openBtn').onclick = () => overlay.classList.add('open');
+  document.getElementById('cancelBtn').onclick = () => overlay.classList.remove('open');
+  document.querySelectorAll('.prov').forEach(p => {
+    p.onclick = () => {
+      document.querySelectorAll('.prov').forEach(x => x.classList.remove('selected'));
+      p.classList.add('selected');
+      document.getElementById('keyrow').classList.add('show');
+    };
+  });
+  document.getElementById('saveBtn').onclick = () => overlay.classList.remove('open');
+</script>
+
+</body>
+</html>
