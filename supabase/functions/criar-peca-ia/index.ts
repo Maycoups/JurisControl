@@ -1,9 +1,12 @@
 // Edge Function: criar-peca-ia
 // Recebe { tarefa, contexto, provedor?, apiKey?, modelo? } e devolve { texto }.
 //
-// Assistente de IA do JurisControl, usado em dois lugares:
+// Assistente de IA do JurisControl, usado em vários lugares:
 //   - Aba "Criação de Peças (IA)" -> tarefa 'minuta', contexto = { tipoPeca, instrucoes, cliente?, processo? }
-//   - Painel de IA nos detalhes de um processo -> as 3 tarefas, contexto sempre traz { processo }
+//   - Painel de IA nos detalhes de um processo -> 'resumo'/'proximo_passo', contexto = { processo }
+//   - Meus Modelos / Gerador de Documentos -> 'modelo_documento' (cria do zero, com placeholders),
+//     'revisar_texto' (ajusta um texto já preenchido com dados reais, sem introduzir placeholders)
+//   - Calculadora de Prazos -> 'sugestao_prazo', contexto = { instrucoes }
 //
 // MODELO DE CUSTO (dois caminhos):
 //   1. Plano gratuito (padrão, sem `apiKey` no corpo): usa o Gemini com uma chave
@@ -14,12 +17,12 @@
 //   2. BYOK ("bring your own key"): o app manda `apiKey` (+ `provedor`) — a
 //      chave de que o(a) próprio(a) advogado(a) conectou em Configurações. Nesse
 //      caso não há limite nem contagem: o custo é 100% dela, na conta dela.
-//      Provedores aceitos em BYOK: "gemini" e "anthropic".
+//      Provedores aceitos em BYOK: "gemini", "anthropic" e "openai".
 //
-// IMPORTANTE: não existe mais fallback pra uma chave da Anthropic da casa — o
-// Claude só está disponível via BYOK. Isso existe de propósito: era o principal
-// risco de custo (Opus/Sonnet são pagos por token desde a primeira chamada,
-// diferente do free tier do Gemini).
+// IMPORTANTE: não existe fallback pra uma chave da casa pra Anthropic nem pra
+// OpenAI — os dois só estão disponíveis via BYOK. Isso existe de propósito:
+// era o principal risco de custo (modelos pagos por token desde a primeira
+// chamada, diferente do free tier do Gemini).
 //
 // Todo texto gerado é sempre uma SUGESTÃO/MINUTA — precisa de revisão humana
 // antes de qualquer uso real, e a função deixa isso explícito na resposta.
@@ -27,6 +30,7 @@
 // Esta função exige um usuário autenticado do JurisControl (ver _shared/auth.ts).
 
 import Anthropic from "npm:@anthropic-ai/sdk";
+import OpenAI from "npm:openai";
 import { GoogleGenAI } from "npm:@google/genai";
 import { createClient } from "npm:@supabase/supabase-js@2";
 import { verificarUsuarioAutenticado, respostaNaoAutenticado } from "../_shared/auth.ts";
@@ -46,10 +50,13 @@ const LIMITE_GRATUITO_MENSAL = 10;
 const MODELO_ANTHROPIC_PADRAO = "claude-sonnet-5";
 const MODELOS_ANTHROPIC_PERMITIDOS = ["claude-opus-5", "claude-sonnet-5", "claude-haiku-4-5-20251001"];
 
-const PROVEDORES_VALIDOS = ["gemini", "anthropic"] as const;
+const MODELO_OPENAI_PADRAO = "gpt-5.1";
+const MODELOS_OPENAI_PERMITIDOS = ["gpt-5.1", "gpt-5.1-mini"];
+
+const PROVEDORES_VALIDOS = ["gemini", "anthropic", "openai"] as const;
 type Provedor = (typeof PROVEDORES_VALIDOS)[number];
 
-const TAREFAS_VALIDAS = ["minuta", "resumo", "proximo_passo", "modelo_documento", "sugestao_prazo"] as const;
+const TAREFAS_VALIDAS = ["minuta", "resumo", "proximo_passo", "modelo_documento", "sugestao_prazo", "revisar_texto"] as const;
 type Tarefa = (typeof TAREFAS_VALIDAS)[number];
 
 const SYSTEM_PROMPT = `Você é um assistente jurídico especializado em direito brasileiro, integrado ao sistema JurisControl de um(a) advogado(a) autônomo(a).
@@ -58,8 +65,9 @@ Sua função é auxiliar na gestão de processos e na redação de peças, sempr
 
 Regras gerais:
 - Escreva em português do Brasil, em linguagem jurídica formal e tecnicamente correta.
-- Use apenas os dados de cliente/processo fornecidos no contexto. Quando um dado necessário não for fornecido (ex: OAB, endereço completo, valor exato), use um placeholder claro entre colchetes, como [OAB Nº 000.000], nunca invente informações factuais.
+- Use apenas os dados de cliente/processo fornecidos no contexto (ou já presentes no texto que lhe for enviado pra revisão). Quando um dado necessário não for fornecido nem estiver no texto, use um placeholder claro entre colchetes, como [OAB Nº 000.000], nunca invente informações factuais.
 - Não invente jurisprudência, súmulas ou precedentes específicos com número/data — se for citar, cite de forma genérica (ex: "conforme entendimento consolidado dos tribunais superiores") a menos que o contexto forneça a fonte.
+- Nunca use formatação markdown (sem **negrito**, *itálico*, #títulos, listas com -/*, etc.) — devolva texto simples, como um documento jurídico de verdade seria digitado.
 - Devolva apenas o texto pedido, sem comentários fora dele.`;
 
 const AVISO_MINUTA =
@@ -85,6 +93,7 @@ Deno.serve(async (req: Request) => {
       cliente?: Record<string, unknown>;
       tipoPeca?: string;
       instrucoes?: string;
+      textoAtual?: string;
     };
     provedor?: string;
     apiKey?: string;
@@ -110,8 +119,11 @@ Deno.serve(async (req: Request) => {
   if ((tarefa === "resumo" || tarefa === "proximo_passo") && Object.keys(processo).length === 0) {
     return jsonResponse({ error: "Dados do processo ausentes no contexto." }, 400);
   }
-  if ((tarefa === "modelo_documento" || tarefa === "sugestao_prazo") && !(contexto.instrucoes ?? "").toString().trim()) {
+  if ((tarefa === "modelo_documento" || tarefa === "sugestao_prazo" || tarefa === "revisar_texto") && !(contexto.instrucoes ?? "").toString().trim()) {
     return jsonResponse({ error: "Descreva o que você precisa." }, 400);
+  }
+  if (tarefa === "revisar_texto" && !(contexto.textoAtual ?? "").toString().trim()) {
+    return jsonResponse({ error: "Texto atual ausente no contexto." }, 400);
   }
 
   const chaveByok = (body.apiKey ?? "").toString().trim() || null;
@@ -122,7 +134,7 @@ Deno.serve(async (req: Request) => {
     ? (body.provedor as Provedor)
     : "gemini";
 
-  const userPrompt = montarPrompt(tarefa, processo, contexto.cliente, contexto.tipoPeca, contexto.instrucoes);
+  const userPrompt = montarPrompt(tarefa, processo, contexto.cliente, contexto.tipoPeca, contexto.instrucoes, contexto.textoAtual);
 
   // --- Plano gratuito: checa e reserva a cota ANTES de gastar a chamada ---
   let clienteAdmin: ReturnType<typeof createClient> | null = null;
@@ -194,6 +206,40 @@ Deno.serve(async (req: Request) => {
         .map((bloco) => bloco.text)
         .join("\n");
       tokensUsados = { entrada: mensagem.usage.input_tokens, saida: mensagem.usage.output_tokens };
+    } else if (provedor === "openai") {
+      const modelo = MODELOS_OPENAI_PERMITIDOS.includes(body.modelo ?? "")
+        ? (body.modelo as string)
+        : MODELO_OPENAI_PADRAO;
+      modeloUsado = modelo;
+
+      const openai = new OpenAI({ apiKey: chaveByok as string });
+      const resposta = await openai.chat.completions.create({
+        model: modelo,
+        max_completion_tokens: 4000,
+        messages: [
+          { role: "system", content: SYSTEM_PROMPT },
+          { role: "user", content: userPrompt },
+        ],
+      });
+
+      const escolha = resposta.choices[0];
+      if (escolha?.finish_reason === "content_filter") {
+        return jsonResponse(
+          { error: "A IA recusou-se a gerar este conteúdo (filtro de conteúdo). Revise o pedido e tente novamente com mais contexto." },
+          422,
+        );
+      }
+
+      textoGerado = (escolha?.message?.content ?? "").trim();
+      if (!textoGerado) {
+        return jsonResponse(
+          { error: "A IA não retornou texto. Tente reformular o pedido." },
+          422,
+        );
+      }
+      if (resposta.usage) {
+        tokensUsados = { entrada: resposta.usage.prompt_tokens, saida: resposta.usage.completion_tokens };
+      }
     } else {
       // provedor === "gemini" (gratuito da casa, ou BYOK com chave própria do Gemini)
       const chaveGemini = chaveByok || Deno.env.get("GEMINI_API_KEY");
@@ -262,6 +308,7 @@ function montarPrompt(
   cliente: Record<string, unknown> | undefined,
   tipoPeca?: string,
   instrucoes?: string,
+  textoAtual?: string,
 ): string {
   const dadosProcesso = Object.keys(processo).length > 0
     ? `\nDados do processo:\n${JSON.stringify(processo, null, 2)}`
@@ -304,6 +351,18 @@ function montarPrompt(
       "Estruture de acordo com as praxes forenses brasileiras (endereçamento quando aplicável, qualificação das partes usando os placeholders, corpo do texto, fechamento com assinatura).",
       "Devolva SÓ o texto do modelo (com os placeholders), sem explicações antes ou depois.",
     ].join("\n");
+  }
+
+  if (tarefa === "revisar_texto") {
+    return [
+      "O texto abaixo JÁ ESTÁ PREENCHIDO com dados reais de um cliente/processo verdadeiro — ele não é um modelo nem um rascunho incompleto. Todo nome, número, valor, endereço e data que aparecem nele são informações reais e corretas, não placeholders faltando preenchimento.",
+      `Sua tarefa é só revisar/ajustar esse texto aplicando esta instrução do(a) advogado(a): "${(instrucoes ?? "").trim()}".`,
+      "Regra mais importante: mantenha TODOS os dados reais já presentes no texto exatamente como estão (nomes, números de processo, valores, endereços, datas etc.) — NÃO substitua nenhum deles por placeholders como {{...}} ou [...], e não invente dados novos. Ajuste só o que a instrução pedir (redação, tom, estrutura, inclusão/remoção de trechos), preservando o resto do texto ao pé da letra.",
+      dadosCliente,
+      dadosProcesso,
+      `\n--- TEXTO ATUAL A REVISAR ---\n${(textoAtual ?? "").trim()}`,
+      "\nDevolva SÓ o texto revisado completo (mesmo formato de documento, sem markdown), sem explicações antes ou depois.",
+    ].filter(Boolean).join("\n");
   }
 
   // sugestao_prazo
