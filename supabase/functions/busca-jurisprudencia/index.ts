@@ -1,31 +1,31 @@
 // Edge Function: busca-jurisprudencia
-// Recebe { termo, uf?, tribunalAlvo?, ufTribunal? } e devolve
-// { resultados, simulado, fonte, mensagem }.
+// Recebe { termo, uf? } e devolve { resultados, fonte, mensagem }.
 //
-// `tribunalAlvo`: 'tjrj' (padrão) | 'uf' | 'stf' | 'stj'.
+// Só TJRJ por enquanto — de propósito. STF, STJ e tribunais de outros estados
+// saíram do escopo desta function: testado na prática (curl direto), os dois
+// bloqueiam acesso automatizado com mais rigor que o TJRJ (STJ/SCON devolve
+// bloqueio de WAF, STF devolve 403 já na primeira requisição, sem um endpoint
+// alternativo óbvio como o eproc do TJRJ). Não fazemos scraping evasivo pra
+// contornar isso (arriscaria a reputação do IP de saída do projeto, que
+// também é usado pelo TJRJ/DJEN que funcionam de verdade), então em vez de
+// devolver dado simulado/fake pra esses tribunais, a function simplesmente
+// não os atende — volta quando houver uma fonte de dados real pra eles.
 //
 // FONTE PRIMÁRIA: LexML Brasil (Rede de Informação Legislativa e Jurídica)
-// https://www.lexml.gov.br/ — agrega legislação e jurisprudência de STF, STJ, TST e
-// diversos tribunais estaduais (inclusive TJRJ) que publicam nessa rede. Protocolo
-// SRU (Search/Retrieve via URL) padrão da Library of Congress, consulta em CQL.
+// https://www.lexml.gov.br/ — agrega legislação e jurisprudência de vários
+// tribunais (inclusive TJRJ) que publicam nessa rede. Protocolo SRU
+// (Search/Retrieve via URL) padrão da Library of Congress, consulta em CQL.
 // Endpoint: https://www.lexml.gov.br/busca/SRU?operation=searchRetrieve&query=<CQL>
 // Na prática costuma estar bloqueado por verificação anti-bot do Senado.
 //
-// FONTE SECUNDÁRIA (fallback real, só pra TJRJ): sistema eproc do próprio TJRJ —
-// busca de jurisprudência pública, sem autenticação e sem CAPTCHA, direto na base
-// de acórdãos e decisões monocráticas do tribunal.
+// FONTE SECUNDÁRIA (fallback real): sistema eproc do próprio TJRJ — busca de
+// jurisprudência pública, sem autenticação e sem CAPTCHA, direto na base de
+// acórdãos e decisões monocráticas do tribunal.
 // Endpoint: https://eproc1g.tjrj.jus.br/eproc/externo_controlador.php?acao=jurisprudencia@jurisprudencia/listar_resultados
 //
-// STF e STJ: testado na prática (curl direto) — os dois bloqueiam acesso
-// automatizado com mais rigor que o TJRJ (STJ/SCON devolve bloqueio de WAF, STF
-// devolve 403 já na primeira requisição, nos dois casos sem um endpoint alternativo
-// óbvio como o eproc do TJRJ). Por isso, pra 'stf'/'stj'/'uf' (tribunal de outro
-// estado), a única tentativa real é o LexML — se bloquear (o caso mais comum), cai
-// pra simulação já rotulada com o tribunal certo, sem fingir que é dado real.
-//
-// Tenta a consulta real primeiro; se bloquear, cai pro fallback da fonte
-// (eproc só existe pra TJRJ); se tudo falhar, cai pra dados de demonstração —
-// o front-end é avisado via `simulado`/`mensagem` em qualquer um dos casos.
+// Tenta o LexML primeiro; se bloquear, cai pro eproc do TJRJ; se os dois
+// falharem, devolve resultado vazio com uma mensagem clara — nunca dado
+// simulado/fake.
 
 import { verificarUsuarioAutenticado, respostaNaoAutenticado } from "../_shared/auth.ts";
 
@@ -51,7 +51,7 @@ Deno.serve(async (req: Request) => {
   const usuario = await verificarUsuarioAutenticado(req);
   if (!usuario) return respostaNaoAutenticado(CORS_HEADERS);
 
-  let body: { termo?: string; uf?: string; tribunalAlvo?: string; ufTribunal?: string };
+  let body: { termo?: string; uf?: string };
   try {
     body = await req.json();
   } catch {
@@ -59,50 +59,20 @@ Deno.serve(async (req: Request) => {
   }
 
   const termo = (body.termo ?? "").toString().trim();
-  const uf = (body.uf ?? "").toString().trim().toUpperCase();
-  const tribunalAlvo = (body.tribunalAlvo ?? "tjrj").toString().trim().toLowerCase();
-  const ufTribunal = (body.ufTribunal ?? "").toString().trim().toUpperCase();
 
   if (!termo) {
     return jsonResponse({ error: "Informe um termo de pesquisa (ex: assunto do processo)." }, 400);
   }
 
-  if (tribunalAlvo !== "tjrj") {
-    // STF, STJ, ou TJ de outro estado (via OAB do usuário) — só o LexML é uma
-    // tentativa real possível; sem scraper dedicado pra esses tribunais.
-    const rotulo = tribunalAlvo === "stf" ? "STF" : tribunalAlvo === "stj" ? "STJ" : `TJ${ufTribunal || uf || "?"}`;
-    try {
-      const resultados = await buscarLexML(termo);
-      return jsonResponse({
-        resultados,
-        simulado: false,
-        fonte: "lexml",
-        mensagem: resultados.length > 0
-          ? `${resultados.length} resultado(s) reais do LexML.`
-          : `Nenhum resultado encontrado no LexML para este termo em ${rotulo}.`,
-      });
-    } catch (lexmlErr) {
-      console.error(`LexML indisponível pra ${rotulo}, retornando dados de demonstração:`, lexmlErr);
-      const resultados = gerarJurisprudenciaSimulada(termo, rotulo);
-      return jsonResponse({
-        resultados,
-        simulado: true,
-        fonte: "simulacao",
-        mensagem: `${rotulo} não tem uma fonte pública com acesso automatizado liberado (bloqueio anti-bot). Exibindo dados de demonstração com a mesma estrutura da resposta real.`,
-      });
-    }
-  }
-
-  // 1ª tentativa: LexML (mais amplo — agrega STF/STJ/TST/TJRJ e outros).
+  // 1ª tentativa: LexML (mais amplo — agrega vários tribunais, incluindo TJRJ).
   try {
     const resultados = await buscarLexML(termo);
     return jsonResponse({
       resultados,
-      simulado: false,
       fonte: "lexml",
       mensagem:
         resultados.length > 0
-          ? `${resultados.length} resultado(s) reais do LexML (rede que agrega STF, STJ, TST e tribunais estaduais).`
+          ? `${resultados.length} resultado(s) reais do LexML.`
           : "Nenhum resultado encontrado no LexML para este termo.",
     });
   } catch (lexmlErr) {
@@ -114,7 +84,6 @@ Deno.serve(async (req: Request) => {
       const resultados = await buscarTJRJ(termo);
       return jsonResponse({
         resultados,
-        simulado: false,
         fonte: "tjrj",
         mensagem:
           resultados.length > 0
@@ -122,13 +91,12 @@ Deno.serve(async (req: Request) => {
             : "LexML indisponível e nenhum resultado encontrado no TJRJ para este termo.",
       });
     } catch (tjrjErr) {
-      console.error("eproc TJRJ também indisponível, retornando dados de demonstração:", tjrjErr);
-      const resultados = gerarJurisprudenciaSimulada(termo, "TJRJ");
+      console.error("eproc TJRJ também indisponível:", tjrjErr);
+      // Nunca dado simulado/fake — resultado vazio com o motivo real.
       return jsonResponse({
-        resultados,
-        simulado: true,
-        fonte: "simulacao",
-        mensagem: `Não foi possível consultar LexML (${errMsg(lexmlErr)}) nem o TJRJ (${errMsg(tjrjErr)}) agora. Exibindo dados de demonstração com a mesma estrutura da resposta real.`,
+        resultados: [],
+        fonte: "indisponivel",
+        mensagem: `Não foi possível consultar jurisprudência agora — LexML (${errMsg(lexmlErr)}) e TJRJ (${errMsg(tjrjErr)}) indisponíveis. Tente novamente em alguns minutos.`,
       });
     }
   }
@@ -341,47 +309,3 @@ function decodificarEntidades(texto: string): string {
     .trim();
 }
 
-// ---------------------------------------------------------------------------
-// Simulação (fallback quando o LexML está indisponível/bloqueado)
-// ---------------------------------------------------------------------------
-
-function gerarJurisprudenciaSimulada(termo: string, tribunalFixo?: string): ResultadoJurisprudencia[] {
-  let seed = 0;
-  for (const ch of termo) seed = (seed * 31 + ch.charCodeAt(0)) >>> 0;
-  if (seed === 0) seed = 7;
-  const proximo = () => {
-    seed = (seed * 1103515245 + 12345) >>> 0;
-    return seed / 0xffffffff;
-  };
-
-  const tribunais = tribunalFixo ? [tribunalFixo] : ["STJ", "TJRJ", "TST", "STF", "TRF2"];
-  const relatoresPadrao = ["Des(a). Relator(a)", "Min. Relator(a)"];
-  const relatoresPorTribunal: Record<string, string[]> = {
-    STJ: ["Min. Nancy Andrighi", "Min. Luis Felipe Salomão"],
-    TJRJ: ["Des. Marco Aurélio Bezerra de Melo", "Des.ª Cristina Tereza Gaulia"],
-    TST: ["Min. Maria Helena Mallmann"],
-    STF: ["Min. Cármen Lúcia"],
-    TRF2: ["Des. Fed. Ricardo Perlingeiro"],
-  };
-
-  const total = 2 + Math.floor(proximo() * 3);
-  const resultados: ResultadoJurisprudencia[] = [];
-
-  for (let i = 0; i < total; i++) {
-    const tribunal = tribunais[Math.floor(proximo() * tribunais.length)];
-    const relatores = relatoresPorTribunal[tribunal] || relatoresPadrao;
-    const relator = relatores[Math.floor(proximo() * relatores.length)];
-    const ano = 2022 + Math.floor(proximo() * 4);
-
-    resultados.push({
-      titulo: `${tribunal} — Julgado sobre "${termo}" (${ano})`,
-      ementa: `EMENTA SIMULADA. Trata-se de demonstração relacionada ao termo "${termo}". Quando o LexML estiver acessível, este campo trará a ementa real do acórdão/decisão localizado.`,
-      tribunal: `${tribunal} — Rel. ${relator}`,
-      data: `${ano}-0${1 + Math.floor(proximo() * 9)}-1${Math.floor(proximo() * 9)}`,
-      urn: "",
-      link: "",
-    });
-  }
-
-  return resultados;
-}

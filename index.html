@@ -3587,22 +3587,17 @@ OAB nº ${advogadoOab}`;
             );
         }
 
-        // As chaves de IA (Gemini/Anthropic) saíram daqui — configurá-las agora é
-        // só pelo ConfigurarIAModal (mesmo modal do botão "Configure sua IA" do
-        // Dashboard), pra não duplicar a mesma configuração em dois lugares.
-        const SECRETS_DISPONIVEIS = [
-            { chave: 'DATAJUD_API_KEY', label: 'Chave da API DataJud (CNJ)', ajuda: 'Opcional. O app já usa por padrão a chave pública oficial do DataJud (sem cadastro necessário) para buscar movimentações processuais pelo número CNJ. Preencha aqui só se quiser usar uma chave própria diferente.' },
-        ];
-
+        // As chaves de IA (Gemini/Anthropic/OpenAI) e a do DataJud saíram daqui —
+        // a de IA se configura pelo ConfigurarIAModal (mesmo modal do botão
+        // "Configure sua IA" do Dashboard); a do DataJud nem precisa de UI: a API
+        // pública do CNJ já usa uma chave pública compartilhada embutida na Edge
+        // Function (DEFAULT_DATAJUD_API_KEY em supabase/functions/datajud-busca),
+        // não exige cadastro nem chave pessoal — não fazia sentido pedir uma chave
+        // que ninguém precisa ter.
         function ConfiguracoesView({ session, supabaseClient }) {
             const [seguro, setSeguro] = useState(null); // null=carregando | true=safeStorage (Electron) | false=localStorage (navegador)
             const [mostrarTermos, setMostrarTermos] = useState(false);
             const [mostrarConfigurarIA, setMostrarConfigurarIA] = useState(false);
-            const [configuradas, setConfiguradas] = useState([]);
-            const [valores, setValores] = useState({});
-            const [mostrar, setMostrar] = useState({});
-            const [salvando, setSalvando] = useState('');
-            const [mensagem, setMensagem] = useState(null);
 
             const [nomePerfil, setNomePerfil] = useState(session?.user?.user_metadata?.nome || '');
             const [oabPerfil, setOabPerfil] = useState(session?.user?.user_metadata?.oab || '');
@@ -3620,42 +3615,9 @@ OAB nº ${advogadoOab}`;
                     : { tipo: 'sucesso', texto: 'Perfil atualizado!' });
             };
 
-            const carregar = async () => {
-                setSeguro(await armazenamentoSeguroDisponivel());
-                const lista = [];
-                for (const s of SECRETS_DISPONIVEIS) {
-                    if (await getSecret(s.chave)) lista.push(s.chave);
-                }
-                setConfiguradas(lista);
-            };
-
-            useEffect(() => { carregar(); }, []);
-
-            const salvar = async (chave) => {
-                const valor = (valores[chave] || '').trim();
-                if (!valor) { setMensagem({ tipo: 'erro', texto: 'Digite um valor antes de salvar.' }); return; }
-                setSalvando(chave);
-                const resultado = await setSecret(chave, valor);
-                setSalvando('');
-                if (resultado && resultado.ok) {
-                    setMensagem({
-                        tipo: 'sucesso',
-                        texto: resultado.seguro ? 'Chave salva com segurança neste computador.' : 'Chave salva neste navegador (não criptografada — evite usar num computador compartilhado).',
-                    });
-                    setValores(v => ({ ...v, [chave]: '' }));
-                    carregar();
-                } else {
-                    setMensagem({ tipo: 'erro', texto: (resultado && resultado.erro) || 'Falha ao salvar.' });
-                }
-            };
-
-            const remover = async (chave) => {
-                setSalvando(chave);
-                await deleteSecret(chave);
-                setSalvando('');
-                setMensagem({ tipo: 'sucesso', texto: 'Chave removida.' });
-                carregar();
-            };
+            useEffect(() => {
+                armazenamentoSeguroDisponivel().then(setSeguro);
+            }, []);
 
             return (
                 <div className="space-y-6">
@@ -3729,62 +3691,8 @@ OAB nº ${advogadoOab}`;
                         </div>
                     )}
 
-                    {mensagem && (
-                        <div className={`p-4 rounded-xl border text-sm ${mensagem.tipo === 'sucesso' ? 'bg-emerald-50 text-emerald-700 border-emerald-200' : 'bg-rose-50 text-rose-700 border-rose-200'}`}>
-                            {mensagem.texto}
-                        </div>
-                    )}
-
-                    <div className="space-y-4">
-                        {SECRETS_DISPONIVEIS.map(s => {
-                            const jaConfigurada = configuradas.includes(s.chave);
-                            return (
-                                <div key={s.chave} className="bg-white rounded-2xl border border-stone-200 shadow-sm p-5">
-                                    <div className="flex items-center justify-between mb-1">
-                                        <h3 className="font-bold text-stone-900 text-sm">{s.label}</h3>
-                                        <span className={`text-[10px] font-bold px-2 py-0.5 rounded uppercase ${jaConfigurada ? 'bg-emerald-100 text-emerald-700' : 'bg-stone-100 text-stone-500'}`}>
-                                            {jaConfigurada ? 'Configurada' : 'Não configurada'}
-                                        </span>
-                                    </div>
-                                    <p className="text-xs text-stone-400 mb-3">{s.ajuda}</p>
-                                    <div className="flex gap-2">
-                                        <div className="flex-1 relative">
-                                            <input
-                                                type={mostrar[s.chave] ? 'text' : 'password'}
-                                                value={valores[s.chave] || ''}
-                                                onChange={e => setValores(v => ({ ...v, [s.chave]: e.target.value }))}
-                                                placeholder={jaConfigurada ? 'Digite um novo valor para substituir' : 'Cole a chave aqui'}
-                                                className="w-full p-2.5 pr-10 bg-stone-50 border border-stone-200 rounded-xl text-sm font-mono disabled:opacity-50"
-                                            />
-                                            <button type="button" onClick={() => setMostrar(m => ({ ...m, [s.chave]: !m[s.chave] }))} className="absolute right-3 top-1/2 -translate-y-1/2 text-stone-400 hover:text-stone-600">
-                                                <i className={`fa-solid ${mostrar[s.chave] ? 'fa-eye-slash' : 'fa-eye'}`}></i>
-                                            </button>
-                                        </div>
-                                        <button
-                                            onClick={() => salvar(s.chave)}
-                                            disabled={salvando === s.chave}
-                                            className="px-4 py-2 bg-amber-500 hover:bg-amber-600 text-stone-950 font-semibold rounded-xl text-sm disabled:opacity-50"
-                                        >
-                                            {salvando === s.chave ? <i className="fa-solid fa-spinner fa-spin"></i> : 'Salvar'}
-                                        </button>
-                                        {jaConfigurada && (
-                                            <button
-                                                onClick={() => remover(s.chave)}
-                                                disabled={salvando === s.chave}
-                                                className="px-3 py-2 bg-stone-100 hover:bg-rose-100 hover:text-rose-700 text-stone-500 rounded-xl text-sm"
-                                                title="Remover credencial"
-                                            >
-                                                <i className="fa-solid fa-trash"></i>
-                                            </button>
-                                        )}
-                                    </div>
-                                </div>
-                            );
-                        })}
-                    </div>
-
                     <div className="bg-stone-50 border border-stone-200 rounded-2xl p-5 text-xs text-stone-500 space-y-1">
-                        <p><strong>Como funciona:</strong> no aplicativo instalado, as chaves ficam criptografadas num arquivo fora da pasta do projeto, protegidas pela sua conta do Windows; pela web, ficam no navegador (localStorage). Em nenhum caso ficam no HTML/código-fonte. Quando uma peça é gerada, o app lê o valor só na hora do uso e o envia direto pra função correspondente no Supabase — nunca fica salvo lá.</p>
+                        <p><strong>Como funciona:</strong> no aplicativo instalado, as chaves de IA ficam criptografadas num arquivo fora da pasta do projeto, protegidas pela sua conta do Windows; pela web, ficam no navegador (localStorage). Em nenhum caso ficam no HTML/código-fonte. Quando uma peça é gerada, o app lê o valor só na hora do uso e o envia direto pra função correspondente no Supabase — nunca fica salvo lá.</p>
                         <p>Sem nenhuma chave conectada, a Criação de Peças usa o plano gratuito (Gemini) até o limite mensal por conta.</p>
                     </div>
 
@@ -4759,9 +4667,6 @@ OAB nº ${advogadoOab}`;
             const [jurisprudencia, setJurisprudencia] = useState(null); // null = ainda não buscou
             const [loadingJuris, setLoadingJuris] = useState(false);
             const [erroJuris, setErroJuris] = useState(null);
-            // Filtro de tribunal na busca de jurisprudência — foco em RJ por padrão.
-            const ufOab = (session?.user?.user_metadata?.oab || '').split('/')[1]?.trim().toUpperCase() || '';
-            const [filtroTribunal, setFiltroTribunal] = useState('tjrj');
 
             useEffect(() => {
                 let cancelado = false;
@@ -4774,7 +4679,10 @@ OAB nº ${advogadoOab}`;
                 setLoadingJuris(true);
                 setErroJuris(null);
 
-                invocarFunction(supabaseClient, 'busca-jurisprudencia', { body: { termo, uf: process.uf || 'RJ', tribunalAlvo: filtroTribunal, ufTribunal: ufOab } })
+                // Só TJRJ tem fonte real hoje (eproc do próprio tribunal) — os outros
+                // tribunais saíram da busca até termos uma fonte de dados de verdade
+                // pra eles (sem exibir resultado simulado/fake no lugar).
+                invocarFunction(supabaseClient, 'busca-jurisprudencia', { body: { termo, uf: process.uf || 'RJ' } })
                     .then(({ data, error }) => {
                         if (cancelado) return;
                         if (error) throw error;
@@ -4788,7 +4696,7 @@ OAB nº ${advogadoOab}`;
                     .finally(() => { if (!cancelado) setLoadingJuris(false); });
 
                 return () => { cancelado = true; };
-            }, [process.id, filtroTribunal]);
+            }, [process.id]);
 
             return (
                 <div className="fixed inset-0 bg-navy-900/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
@@ -4883,21 +4791,18 @@ OAB nº ${advogadoOab}`;
                                     <div className="flex items-center justify-between mb-3 flex-wrap gap-2">
                                         <h4 className="font-bold text-stone-900 text-sm flex items-center gap-2">
                                             <i className="fa-solid fa-scale-balanced text-indigo-500"></i> Jurisprudência Relacionada
+                                            <span className="text-[10px] font-bold text-stone-400 uppercase font-normal normal-case">— TJRJ</span>
                                         </h4>
-                                        <div className="flex items-center gap-2">
-                                            <select value={filtroTribunal} onChange={e => setFiltroTribunal(e.target.value)} className="p-1.5 bg-stone-50 border border-stone-200 rounded-lg text-xs font-semibold">
-                                                <option value="tjrj">TJRJ</option>
-                                                {ufOab && ufOab !== 'RJ' && <option value="uf">{`TJ${ufOab} (sua OAB)`}</option>}
-                                                <option value="stf">STF</option>
-                                                <option value="stj">STJ</option>
-                                            </select>
-                                            {jurisprudencia && (
-                                                <span className={`text-[10px] font-bold px-2 py-0.5 rounded uppercase whitespace-nowrap ${jurisprudencia.simulado ? 'bg-amber-100 text-amber-700' : 'bg-emerald-100 text-emerald-700'}`}>
-                                                    {jurisprudencia.simulado ? 'Simulação' : `Real (${jurisprudencia.fonte})`}
-                                                </span>
-                                            )}
-                                        </div>
+                                        {jurisprudencia && !loadingJuris && (
+                                            <span className="text-[10px] font-bold px-2 py-0.5 rounded uppercase whitespace-nowrap bg-emerald-100 text-emerald-700">
+                                                Real ({jurisprudencia.fonte})
+                                            </span>
+                                        )}
                                     </div>
+                                    <p className="text-[11px] text-stone-400 -mt-2 mb-3">
+                                        Por enquanto só o TJRJ tem fonte pública com acesso automatizado liberado —
+                                        os outros tribunais saem daqui assim que houver uma fonte de dados real pra eles.
+                                    </p>
 
                                     {loadingJuris && (
                                         <p className="text-xs text-stone-400"><i className="fa-solid fa-spinner fa-spin mr-2"></i>Buscando jurisprudência relacionada...</p>
@@ -4917,10 +4822,17 @@ OAB nº ${advogadoOab}`;
                             )}
 
                             {abaAtiva === 'ia' && (
-                                <div className="max-w-3xl space-y-6">
-                                    <AiAssistPanel process={process} supabaseClient={supabaseClient} />
-                                    <div className="pt-4 border-t">
-                                        <h4 className="text-xs font-bold text-stone-700 uppercase flex items-center gap-2 mb-3">
+                                <div className="space-y-6">
+                                    {/* Antes essa aba inteira ficava presa num max-w-3xl — sobrava
+                                        de largura pro AiAssistPanel (só um select+botão+textarea) e
+                                        faltava pro DocumentGeneratorView, que é desenhado pra 3
+                                        colunas largas. Cada bloco agora usa a largura que faz
+                                        sentido pra si. */}
+                                    <div className="max-w-2xl bg-stone-50 border border-stone-200 rounded-2xl p-5">
+                                        <AiAssistPanel process={process} supabaseClient={supabaseClient} />
+                                    </div>
+                                    <div className="pt-2 border-t border-stone-200">
+                                        <h4 className="text-xs font-bold text-stone-700 uppercase flex items-center gap-2 mb-4 pt-4">
                                             <i className="fa-solid fa-file-signature text-indigo-700"></i> Gerar Documento deste Processo
                                         </h4>
                                         <DocumentGeneratorView clients={clients} processes={[]} session={session} processoFixo={process} modelosDocumento={modelosDocumento} onSalvarModelo={onSalvarModelo} supabaseClient={supabaseClient} />
