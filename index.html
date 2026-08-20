@@ -19,6 +19,8 @@
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
     <!-- html-docx-js (gratuita, MIT) — converte HTML em .docx real, 100% no navegador -->
     <script src="https://cdn.jsdelivr.net/npm/html-docx-js/dist/html-docx.js"></script>
+    <!-- mammoth.js (gratuita, BSD) — extrai o texto de um .docx importado, 100% no navegador -->
+    <script src="https://cdn.jsdelivr.net/npm/mammoth@1/mammoth.browser.min.js"></script>
     <!-- Google Fonts -->
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
 
@@ -146,6 +148,86 @@
         }
 
         const CNJ_REGEX = /^\d{7}-\d{2}\.\d{4}\.\d{1}\.\d{2}\.\d{4}$/;
+
+        // Termos de Uso e Política de Privacidade — texto redigido fora do app (LGPD),
+        // exibido em Configurações. Estrutura: cada item é [título, corpo] ou
+        // [título, [subitens]] pra tabela da seção 2.2.
+        const TERMOS_DE_USO = {
+            titulo: 'JurisControl — Termos de Uso e Política de Privacidade',
+            subtitulo: 'Conformidade com a Lei Geral de Proteção de Dados (Lei nº 13.709/2018 — LGPD)',
+            secoes: [
+                { h: '1. Termos de Uso' },
+                { h: '1.1. Aceitação dos Termos', p: 'Ao acessar ou utilizar a plataforma JurisControl ("Software"), o usuário ("Advogado" ou "Usuário") concorda expressamente com os presentes Termos de Uso. O uso contínuo da plataforma caracteriza a aceitação plena e sem reservas de todas as condições aqui estabelecidas.' },
+                { h: '1.2. Objeto e Licença de Uso', p: 'O JurisControl é um software de gestão jurídica voltado para advogados e escritórios independentes, oferecendo funcionalidades de acompanhamento processual, gestão de clientes, controle financeiro e integração com APIs públicas de tribunais (como TJRJ e DataJud/CNJ). O Software é concedido sob licença de uso limitada, não exclusiva, revogável e intransferível.' },
+                { h: '1.3. Responsabilidades do Usuário', lista: [
+                    'Manter o sigilo de suas credenciais de acesso (e-mail, senha e tokens de API).',
+                    'Garantir a veracidade e legalidade dos dados de clientes e processos inseridos no sistema.',
+                    'Utilizar as integrações de consulta pública (TJRJ/DataJud) em estrita observância à legislação vigente e aos limites éticos da OAB.',
+                ] },
+                { h: '1.4. Limitação de Responsabilidade', p: 'O JurisControl atua como ferramenta auxiliar de gestão e consulta. O Software não substitui a conferência oficial dos prazos e andamentos nos diários oficiais e sistemas dos tribunais, cabendo exclusivamente ao Usuário a responsabilidade pelo cumprimento de seus prazos processuais.' },
+                { h: '2. Política de Privacidade (LGPD)' },
+                { h: '2.1. Papéis na Proteção de Dados', p: 'Nos termos da Lei nº 13.709/2018 (LGPD): Controlador é o Usuário (Advogado ou Escritório) em relação aos dados pessoais de seus clientes inseridos na plataforma. Operador é o JurisControl, que processa os dados em nome do Controlador para prestar os serviços contratados.' },
+                { h: '2.2. Categorias de Dados Tratados e Finalidades', tabela: {
+                    colunas: ['Categoria', 'Dados Coletados', 'Base Legal (LGPD)', 'Finalidade'],
+                    linhas: [
+                        ['Dados do Advogado', 'Nome, CPF, OAB/UF, e-mail, senha criptografada', 'Execução de Contrato (Art. 7º, V)', 'Autenticação, gestão da conta e liberação de acesso às funcionalidades.'],
+                        ['Dados dos Clientes', 'Nome, CPF/CNPJ, e-mail, telefone, contrato', 'Execução de Contrato / Cumprimento de Obrigação Legal', 'Gestão de carteira de clientes, vinculação a processos e emissão de alertas.'],
+                        ['Dados Processuais', 'Número CNJ, classe, assunto, órgão julgador, histórico', 'Exercício Regular de Direitos / Dados Públicos (Art. 7º, VI)', 'Exibição no painel de controle, monitoramento e geração de documentos.'],
+                    ],
+                } },
+                { h: '2.3. Segurança e Armazenamento dos Dados', p: 'Todos os dados são armazenados em infraestrutura segura com encriptação em trânsito (TLS/HTTPS) e em repouso. O acesso à base de dados é protegido por políticas de Row Level Security (RLS), garantindo que cada Usuário acesse estritamente os seus próprios registros.' },
+                { h: '2.4. Direitos dos Titulares de Dados', p: 'Os titulares dos dados têm o direito de solicitar a confirmação do tratamento, acesso, correção, anonimização, eliminação ou portabilidade de seus dados pessoais, mediante solicitação formal ao Encarregado pelo Tratamento de Dados (DPO) da plataforma.' },
+                { h: '2.5. Alterações nesta Política', p: 'Esta Política pode ser atualizada periodicamente para refletir melhorias no sistema ou adequações regulatórias. Notificações sobre alterações relevantes serão enviadas aos Usuários cadastrados.' },
+            ],
+        };
+
+        function TermosDeUsoModal({ onClose }) {
+            return (
+                <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+                    <div className="bg-white rounded-2xl max-w-2xl w-full max-h-[85vh] overflow-y-auto p-6 shadow-2xl space-y-4">
+                        <div className="flex justify-between items-start border-b pb-3">
+                            <div>
+                                <h3 className="font-bold text-lg text-slate-900">{TERMOS_DE_USO.titulo}</h3>
+                                <p className="text-xs text-slate-400 mt-0.5">{TERMOS_DE_USO.subtitulo}</p>
+                            </div>
+                            <button onClick={onClose} className="text-slate-400 hover:text-slate-600 flex-shrink-0"><i className="fa-solid fa-xmark text-lg"></i></button>
+                        </div>
+                        <div className="space-y-4 text-sm text-slate-700">
+                            {TERMOS_DE_USO.secoes.map((s, i) => (
+                                <div key={i}>
+                                    <h4 className={s.h.match(/^\d+\.\s/) ? 'font-bold text-slate-900 text-base mt-2' : 'font-semibold text-slate-800 text-sm'}>{s.h}</h4>
+                                    {s.p && <p className="text-slate-600 mt-1 leading-relaxed">{s.p}</p>}
+                                    {s.lista && (
+                                        <ul className="list-disc list-inside text-slate-600 mt-1 space-y-0.5">
+                                            {s.lista.map((item, j) => <li key={j}>{item}</li>)}
+                                        </ul>
+                                    )}
+                                    {s.tabela && (
+                                        <div className="overflow-x-auto mt-2 border border-slate-200 rounded-xl">
+                                            <table className="w-full text-xs">
+                                                <thead className="bg-slate-50">
+                                                    <tr>{s.tabela.colunas.map(c => <th key={c} className="text-left p-2 font-semibold text-slate-600 border-b">{c}</th>)}</tr>
+                                                </thead>
+                                                <tbody>
+                                                    {s.tabela.linhas.map((linha, li) => (
+                                                        <tr key={li} className="border-b last:border-0">
+                                                            {linha.map((cel, ci) => <td key={ci} className="p-2 text-slate-600 align-top">{cel}</td>)}
+                                                        </tr>
+                                                    ))}
+                                                </tbody>
+                                            </table>
+                                        </div>
+                                    )}
+                                </div>
+                            ))}
+                        </div>
+                        <div className="flex justify-end pt-3 border-t">
+                            <button onClick={onClose} className="px-4 py-2 bg-slate-100 text-slate-700 text-xs font-semibold rounded-lg">Fechar</button>
+                        </div>
+                    </div>
+                </div>
+            );
+        }
 
         // supabaseClient.functions.invoke() sempre devolve error.message genérico
         // ("Edge Function returned a non-2xx status code"), mesmo quando a function
@@ -531,6 +613,7 @@
             const [processes, setProcesses] = useState([]);
             const [financials, setFinancials] = useState([]);
             const [tribunaisConhecimento, setTribunaisConhecimento] = useState([]);
+            const [modelosDocumento, setModelosDocumento] = useState([]);
             const [dadosCarregados, setDadosCarregados] = useState(false);
             const [erroCarregamento, setErroCarregamento] = useState(null);
             const [alertas, setAlertas] = useState(() => {
@@ -558,14 +641,15 @@
                 async function carregarDados() {
                     setDadosCarregados(false);
                     setErroCarregamento(null);
-                    const [clientesRes, processosRes, financeiroRes, tribunaisRes] = await Promise.all([
+                    const [clientesRes, processosRes, financeiroRes, tribunaisRes, modelosRes] = await Promise.all([
                         supabaseClient.from('clients').select('data').eq('user_id', userId),
                         supabaseClient.from('processes').select('data').eq('user_id', userId),
                         supabaseClient.from('financials').select('data').eq('user_id', userId),
                         supabaseClient.from('tribunais_conhecimento').select('data').eq('user_id', userId),
+                        supabaseClient.from('modelos_documento').select('data').eq('user_id', userId),
                     ]);
                     if (cancelado) return;
-                    const erro = clientesRes.error || processosRes.error || financeiroRes.error || tribunaisRes.error;
+                    const erro = clientesRes.error || processosRes.error || financeiroRes.error || tribunaisRes.error || modelosRes.error;
                     if (erro) {
                         console.error('Erro ao carregar dados do Supabase:', erro);
                         setErroCarregamento(erro.message || 'Falha ao carregar seus dados.');
@@ -574,6 +658,7 @@
                     setProcesses((processosRes.data || []).map(r => r.data));
                     setFinancials((financeiroRes.data || []).map(r => r.data));
                     setTribunaisConhecimento((tribunaisRes.data || []).map(r => r.data));
+                    setModelosDocumento((modelosRes.data || []).map(r => r.data));
                     setDadosCarregados(true);
                 }
                 carregarDados();
@@ -632,6 +717,26 @@
                 setTribunaisConhecimento(prev => prev.filter(t => t.id !== id));
                 removerDoSupabase('tribunais_conhecimento', id);
                 showNotification('Anotação removida.');
+            };
+
+            // Modelos de documento próprios (além dos fixos do app)
+            const handleSalvarModelo = (registro) => {
+                const obj = registro.id
+                    ? registro
+                    : { ...registro, id: 'modelo-' + Date.now() + '-' + Math.random().toString(36).slice(2, 7), criadoEm: new Date().toISOString().split('T')[0] };
+                setModelosDocumento(prev => {
+                    const existe = prev.some(m => m.id === obj.id);
+                    return existe ? prev.map(m => (m.id === obj.id ? obj : m)) : [obj, ...prev];
+                });
+                salvarNoSupabase('modelos_documento', obj);
+                showNotification('Modelo salvo!');
+                return obj;
+            };
+
+            const handleRemoverModelo = (id) => {
+                setModelosDocumento(prev => prev.filter(m => m.id !== id));
+                removerDoSupabase('modelos_documento', id);
+                showNotification('Modelo removido.');
             };
 
             // Form Handlers
@@ -985,7 +1090,9 @@
                                 processes={processes}
                                 clients={clients}
                                 financials={financials}
+                                alertas={alertas}
                                 session={session}
+                                supabaseClient={supabaseClient}
                                 onNavigate={setActiveTab}
                                 onNewProcess={() => setProcessModal('new')}
                                 onNewClient={() => setShowClientModal(true)}
@@ -998,6 +1105,7 @@
                                 clients={clients}
                                 onOpenNewModal={() => setProcessModal('new')}
                                 onSelectProcess={setSelectedProcess}
+                                onUpdateKanbanStatus={handleUpdateProcessKanbanStatus}
                             />
                         )}
 
@@ -1063,7 +1171,7 @@
                         )}
 
                         {activeTab === 'documentos' && (
-                            <DocumentGeneratorView clients={clients} processes={processes} session={session} />
+                            <DocumentGeneratorView clients={clients} processes={processes} session={session} modelosDocumento={modelosDocumento} onSalvarModelo={handleSalvarModelo} supabaseClient={supabaseClient} />
                         )}
 
                         {activeTab === 'pecas_ia' && (
@@ -1071,7 +1179,7 @@
                         )}
 
                         {activeTab === 'calculadora' && (
-                            <DeadlineCalculatorView />
+                            <DeadlineCalculatorView supabaseClient={supabaseClient} />
                         )}
 
                         {activeTab === 'configuracoes' && (
@@ -1110,9 +1218,15 @@
                         <ProcessDetailsModal
                             process={selectedProcess}
                             clients={clients}
+                            financials={financials}
                             session={session}
                             tribunais={tribunaisConhecimento}
                             onSalvarTribunal={handleSalvarTribunal}
+                            onAddFinancial={handleAddFinancial}
+                            onToggleFinancialStatus={handleTogglePaymentStatus}
+                            onUpdateProcess={handleUpdateProcess}
+                            modelosDocumento={modelosDocumento}
+                            onSalvarModelo={handleSalvarModelo}
                             onClose={() => setSelectedProcess(null)}
                             onEdit={(process) => { setSelectedProcess(null); setProcessModal(process); }}
                             supabaseClient={supabaseClient}
@@ -1155,7 +1269,113 @@
             );
         }
 
-        function DashboardView({ processes, clients, financials, session, onNavigate, onNewProcess, onNewClient }) {
+        // Passo a passo por provedor pra conectar a própria chave de IA — visual
+        // inspirado nos protótipos de referência (files/juriscontrol_tela_tutorial_chave.html
+        // e juriscontrol_tela_inicial.html), ligado na infraestrutura que já existe
+        // (setSecret/getSecret). Só Claude e Gemini: são os dois provedores que a
+        // Edge Function criar-peca-ia realmente sabe usar.
+        const DADOS_TUTORIAL_IA = {
+            gemini: {
+                nome: 'Gemini (Google)',
+                chave: 'GEMINI_API_KEY',
+                console: 'aistudio.google.com',
+                consoleUrl: 'https://aistudio.google.com/apikey',
+                passos: [
+                    ['Acesse o Google AI Studio', 'Entre em aistudio.google.com com sua conta Google.'],
+                    ['Vá em "Get API key"', 'Clique na opção de obter chave de API no menu.'],
+                    ['Crie e copie a chave', 'Clique em criar chave, escolha o projeto e copie o valor gerado.'],
+                ],
+            },
+            anthropic: {
+                nome: 'Claude (Anthropic)',
+                chave: 'ANTHROPIC_API_KEY',
+                console: 'console.anthropic.com',
+                consoleUrl: 'https://console.anthropic.com/settings/keys',
+                passos: [
+                    ['Acesse o console da Anthropic', 'Entre em console.anthropic.com com sua conta (crie uma se ainda não tiver).'],
+                    ['Vá em "API Keys"', 'No menu lateral, abra a seção de chaves de API.'],
+                    ['Crie e copie a chave', 'Clique em criar nova chave, dê um nome e copie o valor gerado (começa com sk-ant-).'],
+                ],
+            },
+        };
+
+        function ConfigurarIAModal({ onClose }) {
+            const [provedor, setProvedor] = useState('gemini');
+            const [chave, setChave] = useState('');
+            const [salvando, setSalvando] = useState(false);
+            const [mensagem, setMensagem] = useState(null);
+            const dados = DADOS_TUTORIAL_IA[provedor];
+
+            const salvar = async () => {
+                if (!chave.trim()) { setMensagem({ tipo: 'erro', texto: 'Cole sua chave antes de salvar.' }); return; }
+                setSalvando(true);
+                const resultado = await setSecret(dados.chave, chave.trim());
+                setSalvando(false);
+                if (resultado.ok) {
+                    setMensagem({ tipo: 'sucesso', texto: `Chave do ${dados.nome} conectada com sucesso! Gerações ilimitadas a partir de agora.` });
+                    setChave('');
+                } else {
+                    setMensagem({ tipo: 'erro', texto: resultado.erro || 'Falha ao salvar.' });
+                }
+            };
+
+            return (
+                <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+                    <div className="bg-white rounded-2xl max-w-md w-full p-6 shadow-2xl space-y-4 max-h-[90vh] overflow-y-auto">
+                        <div className="flex justify-between items-center border-b pb-3">
+                            <h3 className="font-bold text-lg text-slate-900">Configure sua IA</h3>
+                            <button onClick={onClose} className="text-slate-400 hover:text-slate-600"><i className="fa-solid fa-xmark text-lg"></i></button>
+                        </div>
+                        <p className="text-xs text-slate-500">Conecte sua própria chave pra ter gerações ilimitadas. O plano gratuito (Gemini da casa, 10 gerações/mês) já funciona sem nada disso.</p>
+
+                        <div className="flex bg-slate-100 rounded-xl p-1">
+                            {Object.keys(DADOS_TUTORIAL_IA).map(p => (
+                                <button key={p} type="button" onClick={() => { setProvedor(p); setMensagem(null); }} className={`flex-1 py-2 rounded-lg text-sm font-semibold transition ${provedor === p ? 'bg-white shadow-sm text-slate-900' : 'text-slate-500'}`}>
+                                    {DADOS_TUTORIAL_IA[p].nome}
+                                </button>
+                            ))}
+                        </div>
+
+                        <div className="space-y-2">
+                            {dados.passos.map((s, i) => (
+                                <div key={i} className="flex gap-3 bg-slate-50 border border-slate-200 rounded-xl p-3">
+                                    <div className="w-6 h-6 rounded-full bg-amber-500 text-slate-950 font-bold text-xs flex items-center justify-center flex-shrink-0">{i + 1}</div>
+                                    <div>
+                                        <h4 className="text-xs font-bold text-slate-800">{s[0]}</h4>
+                                        <p className="text-[11px] text-slate-500 mt-0.5">{s[1]}</p>
+                                    </div>
+                                </div>
+                            ))}
+                        </div>
+
+                        <a href={dados.consoleUrl} target="_blank" rel="noreferrer" className="w-full flex items-center justify-center gap-2 py-2.5 border border-amber-400 text-amber-700 rounded-xl text-sm font-semibold hover:bg-amber-50">
+                            <i className="fa-solid fa-arrow-up-right-from-square"></i> Abrir {dados.console}
+                        </a>
+
+                        {mensagem && (
+                            <div className={`p-3 rounded-xl text-xs font-medium ${mensagem.tipo === 'erro' ? 'bg-rose-50 text-rose-700 border border-rose-200' : 'bg-emerald-50 text-emerald-700 border border-emerald-200'}`}>
+                                {mensagem.texto}
+                            </div>
+                        )}
+
+                        <div>
+                            <label className="block text-xs font-semibold text-slate-600 mb-1">Cole sua chave aqui</label>
+                            <input type="password" value={chave} onChange={e => setChave(e.target.value)} placeholder="A chave só aparece uma vez no site do provedor" className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm font-mono" />
+                        </div>
+
+                        <div className="flex justify-end gap-2">
+                            <button onClick={onClose} className="px-4 py-2 bg-slate-100 text-slate-700 text-xs font-semibold rounded-lg">Fechar</button>
+                            <button onClick={salvar} disabled={salvando} className="px-4 py-2 bg-amber-500 hover:bg-amber-600 text-slate-950 font-bold rounded-lg text-sm disabled:opacity-50">
+                                {salvando ? <i className="fa-solid fa-spinner fa-spin"></i> : 'Salvar'}
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            );
+        }
+
+        function DashboardView({ processes, clients, financials, alertas, session, supabaseClient, onNavigate, onNewProcess, onNewClient }) {
+            const [mostrarConfigurarIA, setMostrarConfigurarIA] = useState(false);
             const nome = session?.user?.user_metadata?.nome;
             const hora = new Date().getHours();
             const saudacao = hora < 12 ? 'Bom dia' : hora < 18 ? 'Boa tarde' : 'Boa noite';
@@ -1186,6 +1406,12 @@
                         </div>
                         <div className="flex flex-wrap gap-2">
                             <button
+                                onClick={() => setMostrarConfigurarIA(true)}
+                                className="px-4 py-2 bg-slate-900 hover:bg-slate-800 text-white rounded-lg font-medium text-sm flex items-center gap-2 transition"
+                            >
+                                <i className="fa-solid fa-bolt text-amber-400"></i> Configure sua IA
+                            </button>
+                            <button
                                 onClick={onNewClient}
                                 className="px-4 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-lg font-medium text-sm flex items-center gap-2 transition"
                             >
@@ -1200,8 +1426,13 @@
                         </div>
                     </div>
 
+                    {supabaseClient && session && (
+                        <UsoIAGratuitaBanner supabaseClient={supabaseClient} session={session} />
+                    )}
+                    {mostrarConfigurarIA && <ConfigurarIAModal onClose={() => setMostrarConfigurarIA(false)} />}
+
                     {/* Cards de Métricas Principais */}
-                    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-5">
+                    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-5">
                         <MetricCard
                             title="Processos Ativos"
                             value={processes.length}
@@ -1215,6 +1446,14 @@
                             icon="fa-users"
                             color="indigo"
                             subtext="Pessoas e Empresas"
+                        />
+                        <MetricCard
+                            title="Alertas"
+                            value={(alertas || []).filter(a => a.status === 'nao_tratada').length}
+                            icon="fa-bell"
+                            color="rose"
+                            subtext="Publicações não tratadas"
+                            onClick={() => onNavigate('alertas')}
                         />
                         <MetricCard
                             title="Honorários Recebidos"
@@ -1297,16 +1536,18 @@
             );
         }
 
-        function MetricCard({ title, value, icon, color, subtext }) {
+        function MetricCard({ title, value, icon, color, subtext, onClick }) {
             const colors = {
                 blue: 'bg-blue-50 text-blue-600 border-blue-100',
                 indigo: 'bg-indigo-50 text-indigo-600 border-indigo-100',
                 emerald: 'bg-emerald-50 text-emerald-600 border-emerald-100',
                 amber: 'bg-amber-50 text-amber-600 border-amber-100',
+                rose: 'bg-rose-50 text-rose-600 border-rose-100',
             };
+            const Tag = onClick ? 'button' : 'div';
 
             return (
-                <div className="bg-white rounded-2xl shadow-sm border border-slate-200 p-5 flex flex-col justify-between">
+                <Tag onClick={onClick} className={`bg-white rounded-2xl shadow-sm border border-slate-200 p-5 flex flex-col justify-between text-left w-full ${onClick ? 'hover:shadow-md hover:border-slate-300 transition cursor-pointer' : ''}`}>
                     <div className="flex items-center justify-between">
                         <span className="text-xs font-semibold uppercase tracking-wider text-slate-500">{title}</span>
                         <div className={`w-10 h-10 rounded-xl flex items-center justify-center border ${colors[color]}`}>
@@ -1317,7 +1558,7 @@
                         <div className="text-2xl font-extrabold text-slate-900 tracking-tight">{value}</div>
                         <p className="text-xs text-slate-400 mt-1">{subtext}</p>
                     </div>
-                </div>
+                </Tag>
             );
         }
 
@@ -1352,9 +1593,10 @@
             );
         }
 
-        function ProcessesView({ processes, clients, onOpenNewModal, onSelectProcess }) {
+        function ProcessesView({ processes, clients, onOpenNewModal, onSelectProcess, onUpdateKanbanStatus }) {
             const [searchTerm, setSearchTerm] = useState('');
             const [selectedArea, setSelectedArea] = useState('Todas');
+            const [modoVisualizacao, setModoVisualizacao] = useState('lista'); // 'lista' | 'kanban'
 
             const filteredProcesses = processes.filter(p => {
                 const matchesSearch = p.numero.toLowerCase().includes(searchTerm.toLowerCase()) ||
@@ -1371,14 +1613,34 @@
                             <h2 className="text-2xl font-bold text-slate-900">Gestão de Processos</h2>
                             <p className="text-slate-500 text-sm mt-1">Acompanhamento unificado de ações cíveis, trabalhistas, penais e outras.</p>
                         </div>
-                        <button
-                            onClick={onOpenNewModal}
-                            className="px-4 py-2 bg-amber-500 hover:bg-amber-600 text-slate-950 font-semibold rounded-lg text-sm flex items-center gap-2 shadow-sm transition"
-                        >
-                            <i className="fa-solid fa-plus"></i> Novo Processo
-                        </button>
+                        <div className="flex items-center gap-2">
+                            <div className="flex bg-slate-100 rounded-lg p-1">
+                                <button
+                                    onClick={() => setModoVisualizacao('lista')}
+                                    className={`px-3 py-1.5 rounded-md text-xs font-semibold transition flex items-center gap-1.5 ${modoVisualizacao === 'lista' ? 'bg-white shadow-sm text-slate-900' : 'text-slate-500'}`}
+                                >
+                                    <i className="fa-solid fa-list"></i> Lista
+                                </button>
+                                <button
+                                    onClick={() => setModoVisualizacao('kanban')}
+                                    className={`px-3 py-1.5 rounded-md text-xs font-semibold transition flex items-center gap-1.5 ${modoVisualizacao === 'kanban' ? 'bg-white shadow-sm text-slate-900' : 'text-slate-500'}`}
+                                >
+                                    <i className="fa-solid fa-table-columns"></i> Kanban
+                                </button>
+                            </div>
+                            <button
+                                onClick={onOpenNewModal}
+                                className="px-4 py-2 bg-amber-500 hover:bg-amber-600 text-slate-950 font-semibold rounded-lg text-sm flex items-center gap-2 shadow-sm transition whitespace-nowrap"
+                            >
+                                <i className="fa-solid fa-plus"></i> Novo Processo
+                            </button>
+                        </div>
                     </div>
 
+                    {modoVisualizacao === 'kanban' ? (
+                        <KanbanView processes={processes} onUpdateStatus={onUpdateKanbanStatus} onSelectProcess={onSelectProcess} />
+                    ) : (
+                    <>
                     {/* Filtros e Pesquisa */}
                     <div className="flex flex-col sm:flex-row gap-3">
                         <div className="relative flex-1">
@@ -1475,6 +1737,8 @@
                             </table>
                         </div>
                     </div>
+                    </>
+                    )}
                 </div>
             );
         }
@@ -2357,6 +2621,123 @@
         // dados do advogado logado. Compartilhado entre o Gerador de Documentos (visão
         // geral) e o painel embutido em cada processo — ambos chamam a mesma função,
         // só muda de onde vêm currentClient/currentProcess.
+        // Substitui placeholders tipo {{cliente.nome}} / {{processo.numero}} num modelo
+        // de documento próprio do usuário. Placeholder sem valor disponível fica como
+        // está (mais fácil de notar e preencher manualmente do que sumir sem avisar).
+        function substituirPlaceholders(texto, dados) {
+            return (texto || '').replace(/\{\{\s*([\w.]+)\s*\}\}/g, (match, caminho) => {
+                const valor = caminho.split('.').reduce((obj, chave) => (obj != null ? obj[chave] : undefined), dados);
+                return (valor !== undefined && valor !== null && valor !== '') ? String(valor) : match;
+            });
+        }
+
+        function ModeloDocumentoModal({ modelo, supabaseClient, onClose, onSave }) {
+            const [nome, setNome] = useState(modelo?.nome || '');
+            const [conteudo, setConteudo] = useState(modelo?.conteudo || '');
+            const [gerandoIA, setGerandoIA] = useState(false);
+            const [descricaoIA, setDescricaoIA] = useState('');
+            const [importando, setImportando] = useState(false);
+            const [erro, setErro] = useState('');
+
+            const criarComIA = async () => {
+                if (!descricaoIA.trim()) { setErro('Descreva o modelo que você quer.'); return; }
+                setGerandoIA(true);
+                setErro('');
+                try {
+                    const { apiKey, provedor } = await resolverProvedorIA();
+                    const { data, error } = await invocarFunction(supabaseClient, 'criar-peca-ia', {
+                        body: { tarefa: 'modelo_documento', contexto: { instrucoes: descricaoIA }, apiKey: apiKey || undefined, provedor: provedor || undefined },
+                    });
+                    if (error) throw error;
+                    if (data && data.error) { setErro(data.error); return; }
+                    setConteudo(data.texto || '');
+                } catch (e) {
+                    setErro(e.message || 'Falha ao gerar com IA.');
+                } finally {
+                    setGerandoIA(false);
+                }
+            };
+
+            const importarArquivo = async (e) => {
+                const arquivo = e.target.files?.[0];
+                if (!arquivo) return;
+                setImportando(true);
+                setErro('');
+                try {
+                    let texto = '';
+                    if (/\.docx$/i.test(arquivo.name)) {
+                        if (!window.mammoth) throw new Error('Biblioteca de leitura de .docx não carregou.');
+                        const buffer = await arquivo.arrayBuffer();
+                        const resultado = await window.mammoth.extractRawText({ arrayBuffer: buffer });
+                        texto = resultado.value || '';
+                    } else {
+                        texto = await arquivo.text();
+                    }
+                    setConteudo(texto);
+                    if (!nome.trim()) setNome(arquivo.name.replace(/\.(docx|txt)$/i, ''));
+                } catch (err) {
+                    setErro('Não foi possível ler o arquivo. Tente um .docx ou .txt.');
+                } finally {
+                    setImportando(false);
+                    e.target.value = '';
+                }
+            };
+
+            const handleSubmit = (e) => {
+                e.preventDefault();
+                if (!nome.trim() || !conteudo.trim()) { setErro('Preencha nome e conteúdo do modelo.'); return; }
+                onSave({ ...(modelo || {}), nome: nome.trim(), conteudo });
+            };
+
+            return (
+                <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+                    <div className="bg-white rounded-2xl max-w-2xl w-full p-6 shadow-2xl space-y-4 max-h-[90vh] overflow-y-auto">
+                        <div className="flex justify-between items-center border-b pb-3">
+                            <h3 className="font-bold text-lg text-slate-900">{modelo ? 'Editar Modelo' : 'Novo Modelo de Documento'}</h3>
+                            <button onClick={onClose} className="text-slate-400 hover:text-slate-600"><i className="fa-solid fa-xmark text-lg"></i></button>
+                        </div>
+                        <p className="text-xs text-slate-500">
+                            Use placeholders como <code className="bg-slate-100 px-1 rounded">{'{{cliente.nome}}'}</code>, <code className="bg-slate-100 px-1 rounded">{'{{processo.numero}}'}</code>, <code className="bg-slate-100 px-1 rounded">{'{{advogado.nome}}'}</code>, <code className="bg-slate-100 px-1 rounded">{'{{advogado.oab}}'}</code>, <code className="bg-slate-100 px-1 rounded">{'{{data}}'}</code> — são preenchidos automaticamente na hora de gerar.
+                        </p>
+
+                        {erro && <div className="p-3 bg-rose-50 text-rose-700 rounded-xl border border-rose-200 text-xs">{erro}</div>}
+
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                            <div className="p-3 bg-slate-50 border border-slate-200 rounded-xl space-y-2">
+                                <label className="block text-xs font-semibold text-slate-600">Importar arquivo (.docx ou .txt)</label>
+                                <input type="file" accept=".docx,.txt" onChange={importarArquivo} disabled={importando} className="text-xs w-full" />
+                                {importando && <p className="text-[11px] text-slate-400"><i className="fa-solid fa-spinner fa-spin mr-1"></i>Lendo arquivo...</p>}
+                            </div>
+                            <div className="p-3 bg-slate-50 border border-slate-200 rounded-xl space-y-2">
+                                <label className="block text-xs font-semibold text-slate-600">Criar com IA</label>
+                                <div className="flex gap-1.5">
+                                    <input value={descricaoIA} onChange={e => setDescricaoIA(e.target.value)} placeholder="Ex: notificação de atraso de aluguel" className="flex-1 p-1.5 bg-white border border-slate-200 rounded-lg text-xs" />
+                                    <button type="button" onClick={criarComIA} disabled={gerandoIA} className="px-2.5 py-1.5 bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg text-xs font-bold disabled:opacity-60">
+                                        {gerandoIA ? <i className="fa-solid fa-spinner fa-spin"></i> : <i className="fa-solid fa-wand-magic-sparkles"></i>}
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+
+                        <form onSubmit={handleSubmit} className="space-y-3">
+                            <div>
+                                <label className="block text-xs font-semibold text-slate-600 mb-1">Nome do modelo *</label>
+                                <input required value={nome} onChange={e => setNome(e.target.value)} placeholder="Ex: Notificação de Atraso" className="w-full p-2 bg-slate-50 border border-slate-200 rounded-lg text-sm" />
+                            </div>
+                            <div>
+                                <label className="block text-xs font-semibold text-slate-600 mb-1">Conteúdo *</label>
+                                <textarea required value={conteudo} onChange={e => setConteudo(e.target.value)} rows={10} className="w-full p-2 bg-slate-50 border border-slate-200 rounded-lg text-sm font-mono" />
+                            </div>
+                            <div className="flex justify-end gap-2 pt-2 border-t">
+                                <button type="button" onClick={onClose} className="px-4 py-2 bg-slate-100 text-slate-700 text-xs font-semibold rounded-lg">Cancelar</button>
+                                <button type="submit" className="px-4 py-2 bg-amber-500 hover:bg-amber-600 text-slate-950 font-bold rounded-lg text-sm">Salvar Modelo</button>
+                            </div>
+                        </form>
+                    </div>
+                </div>
+            );
+        }
+
         function gerarTextoDocumento({ template, currentClient, currentProcess, advogadoNome, advogadoOab, valorRecibo, assuntoNotificacao }) {
             if (!currentClient) return 'Cadastre ao menos um cliente para gerar documentos.';
             const dataExtenso = new Date().toLocaleDateString('pt-BR', { day: 'numeric', month: 'long', year: 'numeric' });
@@ -2438,21 +2819,36 @@ OAB nº ${advogadoOab}`;
             return '';
         }
 
-        function DocumentGeneratorView({ clients, processes, session, processoFixo }) {
+        function DocumentGeneratorView({ clients, processes, session, processoFixo, modelosDocumento, onSalvarModelo, supabaseClient }) {
             const [selectedTemplate, setSelectedTemplate] = useState('procuracao');
             const [selectedClientId, setSelectedClientId] = useState(processoFixo?.clienteId || clients[0]?.id || '');
             const [selectedProcessId, setSelectedProcessId] = useState(processoFixo?.id || '');
             const [valorRecibo, setValorRecibo] = useState('');
             const [assuntoNotificacao, setAssuntoNotificacao] = useState('');
+            const [gerenciarModelos, setGerenciarModelos] = useState(false);
+            const [editandoModelo, setEditandoModelo] = useState(null);
 
             const currentClient = clients.find(c => c.id === selectedClientId) || clients[0];
             const currentProcess = processoFixo || processes.find(p => p.id === selectedProcessId) || null;
             const advogadoNome = session?.user?.user_metadata?.nome || 'DR(A). ADVOGADO(A) AUTÔNOMO(A)';
             const advogadoOab = session?.user?.user_metadata?.oab || '000.000';
+            const modeloProprioSelecionado = selectedTemplate.startsWith('custom:')
+                ? (modelosDocumento || []).find(m => `custom:${m.id}` === selectedTemplate)
+                : null;
 
-            const generateText = () => gerarTextoDocumento({
-                template: selectedTemplate, currentClient, currentProcess, advogadoNome, advogadoOab, valorRecibo, assuntoNotificacao,
-            });
+            const generateText = () => {
+                if (modeloProprioSelecionado) {
+                    return substituirPlaceholders(modeloProprioSelecionado.conteudo, {
+                        cliente: currentClient || {},
+                        processo: currentProcess || {},
+                        advogado: { nome: advogadoNome, oab: advogadoOab },
+                        data: new Date().toLocaleDateString('pt-BR', { day: 'numeric', month: 'long', year: 'numeric' }),
+                    });
+                }
+                return gerarTextoDocumento({
+                    template: selectedTemplate, currentClient, currentProcess, advogadoNome, advogadoOab, valorRecibo, assuntoNotificacao,
+                });
+            };
 
             const copyToClipboard = () => {
                 const text = generateText();
@@ -2470,7 +2866,8 @@ OAB nº ${advogadoOab}`;
             };
 
             const handleDownloadWord = () => {
-                const nomeArquivo = `${selectedTemplate}-${(currentClient?.nome || 'documento').replace(/[^\wÀ-ÿ]+/g, '-')}`;
+                const nomeBase = modeloProprioSelecionado ? modeloProprioSelecionado.nome : selectedTemplate;
+                const nomeArquivo = `${nomeBase}-${(currentClient?.nome || 'documento').replace(/[^\wÀ-ÿ]+/g, '-')}`;
                 baixarComoWord(generateText(), nomeArquivo);
             };
 
@@ -2489,14 +2886,31 @@ OAB nº ${advogadoOab}`;
                             <h3 className="font-bold text-slate-900 text-base">Parâmetros do Documento</h3>
 
                             <div>
-                                <label className="block text-xs font-semibold text-slate-600 mb-1">Modelo de Minuta</label>
+                                <div className="flex items-center justify-between mb-1">
+                                    <label className="block text-xs font-semibold text-slate-600">Modelo de Minuta</label>
+                                    <button type="button" onClick={() => { setEditandoModelo(null); setGerenciarModelos(true); }} className="text-[11px] font-semibold text-indigo-600 hover:text-indigo-800">
+                                        <i className="fa-solid fa-gear mr-1"></i>Meus Modelos
+                                    </button>
+                                </div>
                                 <select
                                     value={selectedTemplate}
                                     onChange={(e) => setSelectedTemplate(e.target.value)}
                                     className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-amber-500"
                                 >
-                                    {TEMPLATES_DOCUMENTO.map(t => <option key={t.id} value={t.id}>{t.label}</option>)}
+                                    <optgroup label="Modelos do JurisControl">
+                                        {TEMPLATES_DOCUMENTO.map(t => <option key={t.id} value={t.id}>{t.label}</option>)}
+                                    </optgroup>
+                                    {(modelosDocumento || []).length > 0 && (
+                                        <optgroup label="Meus Modelos">
+                                            {modelosDocumento.map(m => <option key={m.id} value={`custom:${m.id}`}>{m.nome}</option>)}
+                                        </optgroup>
+                                    )}
                                 </select>
+                                {modeloProprioSelecionado && (
+                                    <button type="button" onClick={() => { setEditandoModelo(modeloProprioSelecionado); setGerenciarModelos(true); }} className="text-[11px] text-slate-400 hover:text-indigo-600 mt-1">
+                                        <i className="fa-solid fa-pen mr-1"></i>Editar este modelo
+                                    </button>
+                                )}
                             </div>
 
                             <div>
@@ -2568,6 +2982,19 @@ OAB nº ${advogadoOab}`;
                             {generateText()}
                         </div>
                     </div>
+
+                    {gerenciarModelos && (
+                        <ModeloDocumentoModal
+                            modelo={editandoModelo}
+                            supabaseClient={supabaseClient}
+                            onClose={() => setGerenciarModelos(false)}
+                            onSave={(dados) => {
+                                const salvo = onSalvarModelo(dados);
+                                setGerenciarModelos(false);
+                                if (salvo?.id) setSelectedTemplate(`custom:${salvo.id}`);
+                            }}
+                        />
+                    )}
                 </div>
             );
         }
@@ -2803,6 +3230,7 @@ OAB nº ${advogadoOab}`;
 
         function ConfiguracoesView({ session, supabaseClient }) {
             const [seguro, setSeguro] = useState(null); // null=carregando | true=safeStorage (Electron) | false=localStorage (navegador)
+            const [mostrarTermos, setMostrarTermos] = useState(false);
             const [configuradas, setConfiguradas] = useState([]);
             const [valores, setValores] = useState({});
             const [mostrar, setMostrar] = useState({});
@@ -2975,14 +3403,45 @@ OAB nº ${advogadoOab}`;
                         <p><strong>Como funciona:</strong> no aplicativo instalado, as chaves ficam criptografadas num arquivo fora da pasta do projeto, protegidas pela sua conta do Windows; pela web, ficam no navegador (localStorage). Em nenhum caso ficam no HTML/código-fonte. Quando uma peça é gerada, o app lê o valor só na hora do uso e o envia direto pra função correspondente no Supabase — nunca fica salvo lá.</p>
                         <p>Sem nenhuma chave conectada, a Criação de Peças usa o plano gratuito (Gemini) até o limite mensal por conta.</p>
                     </div>
+
+                    <div className="text-center pt-2">
+                        <button onClick={() => setMostrarTermos(true)} className="text-xs text-slate-400 hover:text-slate-600 hover:underline">
+                            <i className="fa-solid fa-file-contract mr-1"></i> Termos de Uso e Política de Privacidade
+                        </button>
+                    </div>
+                    {mostrarTermos && <TermosDeUsoModal onClose={() => setMostrarTermos(false)} />}
                 </div>
             );
         }
 
-        function DeadlineCalculatorView() {
+        function DeadlineCalculatorView({ supabaseClient }) {
             const [startDate, setStartDate] = useState(new Date().toISOString().split('T')[0]);
             const [daysCount, setDaysCount] = useState(15);
             const [finalDate, setFinalDate] = useState(null);
+            const [situacaoIA, setSituacaoIA] = useState('');
+            const [respostaIA, setRespostaIA] = useState('');
+            const [erroIA, setErroIA] = useState('');
+            const [carregandoIA, setCarregandoIA] = useState(false);
+
+            const perguntarIA = async () => {
+                if (!situacaoIA.trim()) { setErroIA('Descreva a situação primeiro.'); return; }
+                setCarregandoIA(true);
+                setErroIA('');
+                setRespostaIA('');
+                try {
+                    const { apiKey, provedor } = await resolverProvedorIA();
+                    const { data, error } = await invocarFunction(supabaseClient, 'criar-peca-ia', {
+                        body: { tarefa: 'sugestao_prazo', contexto: { instrucoes: situacaoIA }, apiKey: apiKey || undefined, provedor: provedor || undefined },
+                    });
+                    if (error) throw error;
+                    if (data && data.error) { setErroIA(data.error); return; }
+                    setRespostaIA(data.texto || '');
+                } catch (e) {
+                    setErroIA(e.message || 'Falha ao consultar a IA.');
+                } finally {
+                    setCarregandoIA(false);
+                }
+            };
 
             const calculateCPCDeadline = () => {
                 let current = new Date(startDate + 'T00:00:00');
@@ -3055,6 +3514,32 @@ OAB nº ${advogadoOab}`;
                                 Sempre confira eventuais portarias de suspensão de expediente do Tribunal competente.
                             </div>
                         </div>
+                    </div>
+
+                    <div className="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm space-y-3">
+                        <h3 className="font-bold text-slate-900 text-sm flex items-center gap-2">
+                            <i className="fa-solid fa-wand-magic-sparkles text-indigo-500"></i> Perguntar pra IA (opcional)
+                        </h3>
+                        <p className="text-xs text-slate-500">Não sabe qual é o prazo aplicável? Descreva a situação em texto livre — a IA sugere o tipo de prazo e a contagem.</p>
+                        <div className="flex flex-col sm:flex-row gap-2">
+                            <input
+                                value={situacaoIA}
+                                onChange={e => setSituacaoIA(e.target.value)}
+                                placeholder="Ex: fui intimado ontem de uma sentença de improcedência, quero recorrer"
+                                className="flex-1 p-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm"
+                            />
+                            <button
+                                onClick={perguntarIA}
+                                disabled={carregandoIA}
+                                className="px-4 py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white font-semibold rounded-xl text-sm disabled:opacity-60 whitespace-nowrap"
+                            >
+                                {carregandoIA ? <i className="fa-solid fa-spinner fa-spin"></i> : 'Perguntar'}
+                            </button>
+                        </div>
+                        {erroIA && <p className="text-xs text-rose-600">{erroIA}</p>}
+                        {respostaIA && (
+                            <div className="p-3 bg-indigo-50 border border-indigo-200 rounded-xl text-sm text-indigo-900 whitespace-pre-line">{respostaIA}</div>
+                        )}
                     </div>
                 </div>
             );
@@ -3141,10 +3626,11 @@ OAB nº ${advogadoOab}`;
                 status: initialData.status || 'Inicial',
                 fase: initialData.fase || 'Petição Inicial',
                 valorCausa: initialData.valorCausa || 0,
+                honorariosContratados: initialData.honorariosContratados || 0,
                 proximoPrazo: initialData.proximoPrazo || '',
                 descricaoPrazo: initialData.descricaoPrazo || ''
             } : {
-                numero: '', clienteId: clients[0]?.id || '', area: 'Cível', vara: '', acao: '', status: 'Inicial', fase: 'Petição Inicial', valorCausa: 10000, proximoPrazo: '', descricaoPrazo: ''
+                numero: '', clienteId: clients[0]?.id || '', area: 'Cível', vara: '', acao: '', status: 'Inicial', fase: 'Petição Inicial', valorCausa: 10000, honorariosContratados: 0, proximoPrazo: '', descricaoPrazo: ''
             });
             const [numeroError, setNumeroError] = useState('');
 
@@ -3202,8 +3688,25 @@ OAB nº ${advogadoOab}`;
                                     </select>
                                 </div>
                                 <div>
+                                    <label className="block text-xs font-semibold text-slate-600 mb-1">Status do Processo</label>
+                                    <select className="w-full p-2 bg-slate-50 border rounded-lg text-sm" value={form.status} onChange={e => setForm({...form, status: e.target.value})}>
+                                        <option value="Inicial">Inicial</option>
+                                        <option value="Instrução">Instrução</option>
+                                        <option value="Recurso">Recurso</option>
+                                        <option value="Suspenso">Suspenso</option>
+                                        <option value="Concluído">Concluído</option>
+                                        <option value="Arquivado">Arquivado</option>
+                                    </select>
+                                </div>
+                            </div>
+                            <div className="grid grid-cols-2 gap-3">
+                                <div>
                                     <label className="block text-xs font-semibold text-slate-600 mb-1">Valor da Causa (R$)</label>
                                     <input type="number" className="w-full p-2 bg-slate-50 border rounded-lg text-sm" value={form.valorCausa} onChange={e => setForm({...form, valorCausa: Number(e.target.value)})} />
+                                </div>
+                                <div>
+                                    <label className="block text-xs font-semibold text-slate-600 mb-1">Honorários Contratados (R$)</label>
+                                    <input type="number" className="w-full p-2 bg-slate-50 border rounded-lg text-sm" value={form.honorariosContratados} onChange={e => setForm({...form, honorariosContratados: Number(e.target.value)})} />
                                 </div>
                             </div>
                             <div>
@@ -3238,21 +3741,24 @@ OAB nº ${advogadoOab}`;
             );
         }
 
-        function FinancialModal({ clients, onClose, onSave }) {
+        function FinancialModal({ clients, processoFixo, onClose, onSave }) {
             const [form, setForm] = useState({
-                descricao: '', clienteNome: clients[0]?.nome || '', tipo: 'receita', categoria: 'Honorários Contratuais', valor: 1000, vencimento: new Date().toISOString().split('T')[0], status: 'Pendente'
+                descricao: processoFixo ? `Honorários — Processo ${processoFixo.numero}` : '',
+                clienteNome: processoFixo?.clienteNome || clients[0]?.nome || '',
+                tipo: 'receita', categoria: 'Honorários Contratuais', valor: 1000,
+                vencimento: new Date().toISOString().split('T')[0], status: 'Pendente',
             });
 
             const handleSubmit = (e) => {
                 e.preventDefault();
-                onSave(form);
+                onSave(processoFixo ? { ...form, processoId: processoFixo.id } : form);
             };
 
             return (
                 <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
                     <div className="bg-white rounded-2xl max-w-md w-full p-6 shadow-2xl space-y-4">
                         <div className="flex justify-between items-center border-b pb-3">
-                            <h3 className="font-bold text-lg text-slate-900">Novo Lançamento Financeiro</h3>
+                            <h3 className="font-bold text-lg text-slate-900">{processoFixo ? `Lançamento — Processo ${processoFixo.numero}` : 'Novo Lançamento Financeiro'}</h3>
                             <button onClick={onClose} className="text-slate-400 hover:text-slate-600"><i className="fa-solid fa-xmark text-lg"></i></button>
                         </div>
                         <form onSubmit={handleSubmit} className="space-y-3">
@@ -3675,70 +4181,158 @@ OAB nº ${advogadoOab}`;
             );
         }
 
-        // Versão compacta, embutida na aba "Tribunal" dos detalhes do processo — já
-        // filtra pelas anotações relacionadas ao tribunal/vara sugeridos e pré-preenche
-        // o formulário de nova anotação com esses dados.
-        function TribunalPanelProcesso({ process, tribunais, onSalvarTribunal }) {
-            const [modalAberto, setModalAberto] = useState(false);
-            const [editando, setEditando] = useState(null);
-            const sugestao = sugerirTribunal(process);
-            const relacionados = tribunais.filter(t =>
-                (sugestao && t.tribunal === sugestao) ||
-                (process.vara && t.vara && process.vara.toLowerCase().includes(t.vara.toLowerCase()))
+        const ABAS_PROCESSO = [
+            { id: 'geral', label: 'Visão Geral', icon: 'fa-circle-info' },
+            { id: 'jurisprudencia', label: 'Jurisprudência', icon: 'fa-scale-balanced' },
+            { id: 'ia', label: 'Assistente de IA & Documentos', icon: 'fa-wand-magic-sparkles' },
+        ];
+
+        // Edição rápida da fase processual, sem precisar abrir o modal de edição inteiro.
+        function FaseRapidaEditor({ process, onUpdateProcess }) {
+            const [editando, setEditando] = useState(false);
+            const [valor, setValor] = useState(process.fase || '');
+
+            if (!editando) {
+                return (
+                    <p className="flex items-center gap-2 flex-wrap">
+                        <strong>Fase Atual:</strong>
+                        <span className="px-2 py-0.5 bg-blue-50 text-blue-700 font-semibold rounded text-xs">{process.fase || '—'}</span>
+                        <button onClick={() => { setValor(process.fase || ''); setEditando(true); }} className="text-slate-400 hover:text-indigo-600 text-xs" title="Alterar fase">
+                            <i className="fa-solid fa-pen"></i>
+                        </button>
+                    </p>
+                );
+            }
+            return (
+                <div className="flex items-center gap-2">
+                    <strong className="text-sm whitespace-nowrap">Fase Atual:</strong>
+                    <input autoFocus value={valor} onChange={e => setValor(e.target.value)} className="flex-1 p-1.5 bg-slate-50 border border-slate-200 rounded-lg text-xs" />
+                    <button onClick={() => { onUpdateProcess(process.id, { fase: valor }); setEditando(false); }} className="px-2 py-1 bg-amber-500 hover:bg-amber-600 text-slate-950 rounded text-xs font-bold whitespace-nowrap">Salvar</button>
+                    <button onClick={() => setEditando(false)} className="text-slate-400 text-xs">Cancelar</button>
+                </div>
             );
+        }
+
+        // Tribunal/comarca em formato compacto (dropdown de siglas) — mantém acesso à
+        // mesma anotação livre do TribunalModal, mostrando o texto da nota já salva.
+        function TribunalDropdownGeral({ process, tribunais, onSalvarTribunal }) {
+            const sugestao = sugerirTribunal(process);
+            const [selecionado, setSelecionado] = useState(sugestao || '');
+            const [modalAberto, setModalAberto] = useState(false);
+            const notaExistente = tribunais.find(t => t.tribunal === selecionado);
 
             return (
-                <div className="space-y-3">
-                    <div className="flex items-center justify-between">
-                        <h4 className="text-xs font-bold text-slate-700 uppercase flex items-center gap-2">
-                            <i className="fa-solid fa-landmark text-amber-600"></i> Conhecimento sobre este Tribunal
-                        </h4>
-                        <button onClick={() => { setEditando(null); setModalAberto(true); }} className="text-xs font-semibold text-indigo-600 hover:text-indigo-800">
-                            <i className="fa-solid fa-plus mr-1"></i> Nova anotação
+                <div className="space-y-2">
+                    <label className="block text-xs font-semibold text-slate-600">Tribunal / Comarca</label>
+                    <div className="flex gap-2">
+                        <select value={selecionado} onChange={e => setSelecionado(e.target.value)} className="flex-1 p-2 bg-slate-50 border border-slate-200 rounded-lg text-sm">
+                            <option value="">Selecione...</option>
+                            {LISTA_TRIBUNAIS_BR.map(t => <option key={t} value={t}>{t}</option>)}
+                        </select>
+                        <button onClick={() => setModalAberto(true)} disabled={!selecionado} className="px-3 py-2 bg-slate-100 hover:bg-amber-100 disabled:opacity-40 text-slate-600 rounded-lg text-xs font-semibold whitespace-nowrap">
+                            <i className="fa-solid fa-note-sticky mr-1"></i>{notaExistente ? 'Ver/editar nota' : 'Nova anotação'}
                         </button>
                     </div>
-                    {relacionados.length === 0 && (
-                        <p className="text-xs text-slate-400">Nenhuma anotação ainda{sugestao ? ` para ${sugestao}` : ' para este tribunal/vara'}. Cadastre observações que valem pra qualquer processo dessa vara (peticionamento, secretaria, praxes do juízo...).</p>
+                    {notaExistente?.notas && (
+                        <p className="text-xs text-slate-500 bg-slate-50 border border-slate-200 rounded-lg p-2 whitespace-pre-line">{notaExistente.notas}</p>
                     )}
-                    <div className="space-y-2">
-                        {relacionados.map(t => (
-                            <div key={t.id} className="p-3 bg-slate-50 border border-slate-200 rounded-xl text-xs">
-                                <div className="flex justify-between items-start">
-                                    <div>
-                                        <p className="font-bold text-slate-800">{t.tribunal}</p>
-                                        {t.vara && <p className="text-slate-500">{t.vara}</p>}
-                                    </div>
-                                    <button onClick={() => { setEditando(t); setModalAberto(true); }} className="text-slate-400 hover:text-indigo-600"><i className="fa-solid fa-pen"></i></button>
-                                </div>
-                                {t.notas && <p className="text-slate-600 mt-1.5 whitespace-pre-line">{t.notas}</p>}
-                            </div>
-                        ))}
-                    </div>
                     {modalAberto && (
                         <TribunalModal
-                            registroInicial={editando || { tribunal: sugestao, vara: process.vara || '' }}
+                            registroInicial={notaExistente || { tribunal: selecionado, vara: process.vara || '' }}
                             onClose={() => setModalAberto(false)}
-                            onSave={(dados) => { onSalvarTribunal(dados); setModalAberto(false); }}
+                            onSave={(dados) => { onSalvarTribunal(dados); setSelecionado(dados.tribunal); setModalAberto(false); }}
                         />
                     )}
                 </div>
             );
         }
 
-        const ABAS_PROCESSO = [
-            { id: 'geral', label: 'Visão Geral', icon: 'fa-circle-info' },
-            { id: 'jurisprudencia', label: 'Jurisprudência', icon: 'fa-scale-balanced' },
-            { id: 'ia', label: 'Assistente de IA', icon: 'fa-wand-magic-sparkles' },
-            { id: 'datajud', label: 'Movimentações', icon: 'fa-timeline' },
-            { id: 'documento', label: 'Gerar Documento', icon: 'fa-file-signature' },
-            { id: 'tribunal', label: 'Tribunal', icon: 'fa-landmark' },
-        ];
+        // Lançamentos financeiros vinculados a este processo especificamente
+        // (financials com processoId === process.id) — cria via FinancialModal
+        // (mesmo modal usado no Financeiro geral, aberto "por cima" deste).
+        function FinanceiroDoProcessoPanel({ process, clients, financials, onAddFinancial, onToggleStatus }) {
+            const [modalAberto, setModalAberto] = useState(false);
+            const relacionados = financials.filter(f => f.processoId === process.id);
+            const saldo = relacionados.reduce((acc, f) => acc + (f.tipo === 'receita' ? f.valor : -f.valor), 0);
 
-        function ProcessDetailsModal({ process, clients, session, tribunais, onSalvarTribunal, onClose, onEdit, supabaseClient }) {
+            return (
+                <div className="space-y-3">
+                    <div className="flex items-center justify-between">
+                        <h4 className="text-xs font-bold text-slate-700 uppercase flex items-center gap-2">
+                            <i className="fa-solid fa-wallet text-emerald-600"></i> Financeiro deste Processo
+                        </h4>
+                        <button onClick={() => setModalAberto(true)} className="text-xs font-semibold text-indigo-600 hover:text-indigo-800">
+                            <i className="fa-solid fa-plus mr-1"></i> Lançamento
+                        </button>
+                    </div>
+                    {relacionados.length === 0 && <p className="text-xs text-slate-400">Nenhum lançamento vinculado a este processo ainda.</p>}
+                    <div className="space-y-2">
+                        {relacionados.map(f => (
+                            <div key={f.id} className="flex items-center justify-between p-2.5 bg-slate-50 border border-slate-200 rounded-lg text-xs gap-2">
+                                <div className="min-w-0">
+                                    <p className="font-semibold text-slate-800 truncate">{f.descricao}</p>
+                                    {f.vencimento && <p className="text-slate-400">{new Date(f.vencimento + 'T00:00:00').toLocaleDateString('pt-BR')}</p>}
+                                </div>
+                                <div className="flex items-center gap-2 flex-shrink-0">
+                                    <span className={`font-bold whitespace-nowrap ${f.tipo === 'receita' ? 'text-emerald-600' : 'text-rose-600'}`}>
+                                        {f.tipo === 'receita' ? '+' : '-'} R$ {Number(f.valor).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
+                                    </span>
+                                    <button onClick={() => onToggleStatus(f.id)} className={`px-2 py-0.5 rounded-full font-bold whitespace-nowrap ${f.status === 'Pago' ? 'bg-emerald-100 text-emerald-700' : 'bg-amber-100 text-amber-700'}`}>
+                                        {f.status}
+                                    </button>
+                                </div>
+                            </div>
+                        ))}
+                    </div>
+                    {relacionados.length > 0 && (
+                        <p className="text-xs text-slate-500 pt-1 border-t">Saldo: <strong className={saldo >= 0 ? 'text-emerald-600' : 'text-rose-600'}>R$ {saldo.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</strong></p>
+                    )}
+                    {modalAberto && (
+                        <FinancialModal
+                            clients={clients}
+                            processoFixo={process}
+                            onClose={() => setModalAberto(false)}
+                            onSave={(dados) => { onAddFinancial(dados); setModalAberto(false); }}
+                        />
+                    )}
+                </div>
+            );
+        }
+
+        function JurisprudenciaResultCard({ r }) {
+            const [expandido, setExpandido] = useState(false);
+            return (
+                <div className="p-3 bg-slate-50 border border-slate-200 rounded-xl">
+                    <p className="text-xs font-bold text-slate-800">{r.titulo}</p>
+                    <p className="text-[11px] text-indigo-600 font-medium mt-0.5">{r.tribunal} {r.data && `• ${r.data.slice(0, 10)}`}</p>
+                    <p className="text-xs text-slate-600 mt-1.5">{r.ementa}</p>
+                    <div className="flex items-center gap-3 mt-2">
+                        {r.decisaoIntegral && (
+                            <button onClick={() => setExpandido(!expandido)} className="text-[11px] font-semibold text-indigo-600 hover:underline">
+                                {expandido ? 'Ocultar decisão completa' : 'Ver decisão completa'}
+                            </button>
+                        )}
+                        {r.link && (
+                            <a href={r.link} target="_blank" rel="noreferrer" className="text-[11px] font-semibold text-slate-500 hover:underline">
+                                <i className="fa-solid fa-up-right-from-square mr-1"></i>Consulta processual
+                            </a>
+                        )}
+                    </div>
+                    {expandido && r.decisaoIntegral && (
+                        <p className="text-xs text-slate-600 mt-2 pt-2 border-t whitespace-pre-line">{r.decisaoIntegral}</p>
+                    )}
+                </div>
+            );
+        }
+
+        function ProcessDetailsModal({ process, clients, financials, session, tribunais, onSalvarTribunal, onAddFinancial, onToggleFinancialStatus, onUpdateProcess, modelosDocumento, onSalvarModelo, onClose, onEdit, supabaseClient }) {
             const [abaAtiva, setAbaAtiva] = useState('geral');
             const [jurisprudencia, setJurisprudencia] = useState(null); // null = ainda não buscou
             const [loadingJuris, setLoadingJuris] = useState(false);
             const [erroJuris, setErroJuris] = useState(null);
+            // Filtro de tribunal na busca de jurisprudência — foco em RJ por padrão.
+            const ufOab = (session?.user?.user_metadata?.oab || '').split('/')[1]?.trim().toUpperCase() || '';
+            const [filtroTribunal, setFiltroTribunal] = useState('tjrj');
 
             useEffect(() => {
                 let cancelado = false;
@@ -3751,7 +4345,7 @@ OAB nº ${advogadoOab}`;
                 setLoadingJuris(true);
                 setErroJuris(null);
 
-                invocarFunction(supabaseClient, 'busca-jurisprudencia', { body: { termo, uf: process.uf || 'RJ' } })
+                invocarFunction(supabaseClient, 'busca-jurisprudencia', { body: { termo, uf: process.uf || 'RJ', tribunalAlvo: filtroTribunal, ufTribunal: ufOab } })
                     .then(({ data, error }) => {
                         if (cancelado) return;
                         if (error) throw error;
@@ -3765,7 +4359,7 @@ OAB nº ${advogadoOab}`;
                     .finally(() => { if (!cancelado) setLoadingJuris(false); });
 
                 return () => { cancelado = true; };
-            }, [process.id]);
+            }, [process.id, filtroTribunal]);
 
             return (
                 <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
@@ -3802,31 +4396,53 @@ OAB nº ${advogadoOab}`;
 
                         <div className="flex-1 overflow-y-auto p-6">
                             {abaAtiva === 'geral' && (
-                                <div className="space-y-3 text-sm text-slate-700 max-w-2xl">
-                                    <p><strong>Cliente:</strong> {process.clienteNome}</p>
-                                    <p><strong>Vara/Tribunal:</strong> {process.vara}</p>
-                                    <p><strong>Ação:</strong> {process.acao}</p>
-                                    <p><strong>Fase Atual:</strong> <span className="px-2 py-0.5 bg-blue-50 text-blue-700 font-semibold rounded text-xs">{process.fase}</span></p>
-                                    <p><strong>Valor da Causa:</strong> R$ {Number(process.valorCausa).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</p>
-                                    {process.proximoPrazo && (
-                                        <div className="p-3 bg-amber-50 border border-amber-200 rounded-xl text-xs text-amber-900">
-                                            <strong>Próximo Prazo:</strong> {process.descricaoPrazo} (Vencimento: {new Date(process.proximoPrazo + 'T00:00:00').toLocaleDateString('pt-BR')})
+                                <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
+                                    <div className="space-y-3 text-sm text-slate-700">
+                                        <p><strong>Cliente:</strong> {process.clienteNome}</p>
+                                        <p><strong>Vara/Tribunal:</strong> {process.vara}</p>
+                                        <p><strong>Ação:</strong> {process.acao}</p>
+                                        <FaseRapidaEditor process={process} onUpdateProcess={onUpdateProcess} />
+                                        <p><strong>Valor da Causa:</strong> R$ {Number(process.valorCausa).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</p>
+                                        {process.honorariosContratados > 0 && (
+                                            <p><strong>Honorários Contratados:</strong> R$ {Number(process.honorariosContratados).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</p>
+                                        )}
+                                        {process.proximoPrazo && (
+                                            <div className="p-3 bg-amber-50 border border-amber-200 rounded-xl text-xs text-amber-900">
+                                                <strong>Próximo Prazo:</strong> {process.descricaoPrazo} (Vencimento: {new Date(process.proximoPrazo + 'T00:00:00').toLocaleDateString('pt-BR')})
+                                            </div>
+                                        )}
+                                        <div className="pt-3 border-t">
+                                            <TribunalDropdownGeral process={process} tribunais={tribunais} onSalvarTribunal={onSalvarTribunal} />
                                         </div>
-                                    )}
+                                    </div>
+                                    <div className="space-y-6">
+                                        <DataJudPanel process={process} supabaseClient={supabaseClient} />
+                                        <div className="pt-4 border-t">
+                                            <FinanceiroDoProcessoPanel process={process} clients={clients} financials={financials} onAddFinancial={onAddFinancial} onToggleStatus={onToggleFinancialStatus} />
+                                        </div>
+                                    </div>
                                 </div>
                             )}
 
                             {abaAtiva === 'jurisprudencia' && (
                                 <div>
-                                    <div className="flex items-center justify-between mb-3">
+                                    <div className="flex items-center justify-between mb-3 flex-wrap gap-2">
                                         <h4 className="font-bold text-slate-900 text-sm flex items-center gap-2">
                                             <i className="fa-solid fa-scale-balanced text-indigo-500"></i> Jurisprudência Relacionada
                                         </h4>
-                                        {jurisprudencia && (
-                                            <span className={`text-[10px] font-bold px-2 py-0.5 rounded uppercase ${jurisprudencia.simulado ? 'bg-amber-100 text-amber-700' : 'bg-emerald-100 text-emerald-700'}`}>
-                                                {jurisprudencia.simulado ? 'Simulação' : `Real (${jurisprudencia.fonte})`}
-                                            </span>
-                                        )}
+                                        <div className="flex items-center gap-2">
+                                            <select value={filtroTribunal} onChange={e => setFiltroTribunal(e.target.value)} className="p-1.5 bg-slate-50 border border-slate-200 rounded-lg text-xs font-semibold">
+                                                <option value="tjrj">TJRJ</option>
+                                                {ufOab && ufOab !== 'RJ' && <option value="uf">{`TJ${ufOab} (sua OAB)`}</option>}
+                                                <option value="stf">STF</option>
+                                                <option value="stj">STJ</option>
+                                            </select>
+                                            {jurisprudencia && (
+                                                <span className={`text-[10px] font-bold px-2 py-0.5 rounded uppercase whitespace-nowrap ${jurisprudencia.simulado ? 'bg-amber-100 text-amber-700' : 'bg-emerald-100 text-emerald-700'}`}>
+                                                    {jurisprudencia.simulado ? 'Simulação' : `Real (${jurisprudencia.fonte})`}
+                                                </span>
+                                            )}
+                                        </div>
                                     </div>
 
                                     {loadingJuris && (
@@ -3841,36 +4457,20 @@ OAB nº ${advogadoOab}`;
                                     )}
 
                                     <div className="grid grid-cols-1 lg:grid-cols-2 gap-3">
-                                        {(jurisprudencia?.resultados || []).map((r, idx) => (
-                                            <div key={idx} className="p-3 bg-slate-50 border border-slate-200 rounded-xl">
-                                                <p className="text-xs font-bold text-slate-800">{r.titulo}</p>
-                                                <p className="text-[11px] text-indigo-600 font-medium mt-0.5">{r.tribunal} {r.data && `• ${r.data.slice(0, 10)}`}</p>
-                                                <p className="text-xs text-slate-600 mt-1.5">{r.ementa}</p>
-                                            </div>
-                                        ))}
+                                        {(jurisprudencia?.resultados || []).map((r, idx) => <JurisprudenciaResultCard key={idx} r={r} />)}
                                     </div>
                                 </div>
                             )}
 
                             {abaAtiva === 'ia' && (
-                                <div className="max-w-3xl">
+                                <div className="max-w-3xl space-y-6">
                                     <AiAssistPanel process={process} supabaseClient={supabaseClient} />
-                                </div>
-                            )}
-
-                            {abaAtiva === 'datajud' && (
-                                <div className="max-w-3xl">
-                                    <DataJudPanel process={process} supabaseClient={supabaseClient} />
-                                </div>
-                            )}
-
-                            {abaAtiva === 'documento' && (
-                                <DocumentGeneratorView clients={clients} processes={[]} session={session} processoFixo={process} />
-                            )}
-
-                            {abaAtiva === 'tribunal' && (
-                                <div className="max-w-2xl">
-                                    <TribunalPanelProcesso process={process} tribunais={tribunais} onSalvarTribunal={onSalvarTribunal} />
+                                    <div className="pt-4 border-t">
+                                        <h4 className="text-xs font-bold text-slate-700 uppercase flex items-center gap-2 mb-3">
+                                            <i className="fa-solid fa-file-signature text-blue-700"></i> Gerar Documento deste Processo
+                                        </h4>
+                                        <DocumentGeneratorView clients={clients} processes={[]} session={session} processoFixo={process} modelosDocumento={modelosDocumento} onSalvarModelo={onSalvarModelo} supabaseClient={supabaseClient} />
+                                    </div>
                                 </div>
                             )}
                         </div>

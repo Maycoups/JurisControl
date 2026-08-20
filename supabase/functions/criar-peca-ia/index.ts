@@ -49,7 +49,7 @@ const MODELOS_ANTHROPIC_PERMITIDOS = ["claude-opus-5", "claude-sonnet-5", "claud
 const PROVEDORES_VALIDOS = ["gemini", "anthropic"] as const;
 type Provedor = (typeof PROVEDORES_VALIDOS)[number];
 
-const TAREFAS_VALIDAS = ["minuta", "resumo", "proximo_passo"] as const;
+const TAREFAS_VALIDAS = ["minuta", "resumo", "proximo_passo", "modelo_documento", "sugestao_prazo"] as const;
 type Tarefa = (typeof TAREFAS_VALIDAS)[number];
 
 const SYSTEM_PROMPT = `Você é um assistente jurídico especializado em direito brasileiro, integrado ao sistema JurisControl de um(a) advogado(a) autônomo(a).
@@ -109,6 +109,9 @@ Deno.serve(async (req: Request) => {
   }
   if ((tarefa === "resumo" || tarefa === "proximo_passo") && Object.keys(processo).length === 0) {
     return jsonResponse({ error: "Dados do processo ausentes no contexto." }, 400);
+  }
+  if ((tarefa === "modelo_documento" || tarefa === "sugestao_prazo") && !(contexto.instrucoes ?? "").toString().trim()) {
+    return jsonResponse({ error: "Descreva o que você precisa." }, 400);
   }
 
   const chaveByok = (body.apiKey ?? "").toString().trim() || null;
@@ -286,11 +289,29 @@ function montarPrompt(
     ].join("\n");
   }
 
-  // proximo_passo
+  if (tarefa === "proximo_passo") {
+    return [
+      "Com base na fase atual e no próximo prazo (se houver) do processo abaixo, sugira em até 5 frases qual deve ser o próximo passo processual do(a) advogado(a) — ex: providência a tomar, peça a preparar, prazo a observar.",
+      dadosProcesso,
+      `\nSe não houver prazo/fase suficiente para uma sugestão específica, diga isso explicitamente em vez de inventar um próximo passo.\nAo final, inclua em linha separada: "${AVISO_SUGESTAO}"`,
+    ].join("\n");
+  }
+
+  if (tarefa === "modelo_documento") {
+    return [
+      `Redija um MODELO REUTILIZÁVEL de documento jurídico com base nesta descrição: "${(instrucoes ?? "").trim()}".`,
+      "Este texto vai virar um modelo salvo pelo(a) advogado(a) para reutilizar em vários casos diferentes — por isso, em vez de dados específicos de um cliente/processo, use OBRIGATORIAMENTE estes placeholders onde fizer sentido: {{cliente.nome}}, {{cliente.documento}}, {{cliente.endereco}}, {{cliente.cidade}}, {{cliente.uf}}, {{processo.numero}}, {{processo.vara}}, {{processo.acao}}, {{advogado.nome}}, {{advogado.oab}}, {{data}}.",
+      "Estruture de acordo com as praxes forenses brasileiras (endereçamento quando aplicável, qualificação das partes usando os placeholders, corpo do texto, fechamento com assinatura).",
+      "Devolva SÓ o texto do modelo (com os placeholders), sem explicações antes ou depois.",
+    ].join("\n");
+  }
+
+  // sugestao_prazo
   return [
-    "Com base na fase atual e no próximo prazo (se houver) do processo abaixo, sugira em até 5 frases qual deve ser o próximo passo processual do(a) advogado(a) — ex: providência a tomar, peça a preparar, prazo a observar.",
-    dadosProcesso,
-    `\nSe não houver prazo/fase suficiente para uma sugestão específica, diga isso explicitamente em vez de inventar um próximo passo.\nAo final, inclua em linha separada: "${AVISO_SUGESTAO}"`,
+    `O(a) advogado(a) descreveu esta situação processual: "${(instrucoes ?? "").trim()}".`,
+    "Identifique, com base no CPC (Código de Processo Civil brasileiro) e na prática forense, qual é o prazo processual aplicável (em dias, indicando se são dias úteis ou corridos), a partir de quando ele começa a contar, e cite o dispositivo legal correspondente quando souber com segurança.",
+    "Se a situação for ambígua ou não permitir identificar o prazo com segurança, diga isso explicitamente e liste as hipóteses mais prováveis em vez de inventar um número.",
+    `Responda em até 5 frases.\nAo final, inclua em linha separada: "${AVISO_SUGESTAO} Confira sempre a contagem no sistema oficial do tribunal."`,
   ].join("\n");
 }
 
