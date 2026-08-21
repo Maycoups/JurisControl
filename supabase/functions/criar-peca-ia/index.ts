@@ -94,6 +94,11 @@ Deno.serve(async (req: Request) => {
       tipoPeca?: string;
       instrucoes?: string;
       textoAtual?: string;
+      // Resultados reais de supabase/functions/busca-jurisprudencia (LexML/TJRJ),
+      // já buscados pelo front-end antes de chamar esta function — nunca gerados
+      // aqui. Servem pra fundamentar a tese com jurisprudência de verdade, com
+      // link, em vez do modelo "inventar" precedentes.
+      jurisprudencia?: Array<{ titulo?: string; tribunal?: string; ementa?: string; link?: string; data?: string }>;
     };
     provedor?: string;
     apiKey?: string;
@@ -134,7 +139,7 @@ Deno.serve(async (req: Request) => {
     ? (body.provedor as Provedor)
     : "gemini";
 
-  const userPrompt = montarPrompt(tarefa, processo, contexto.cliente, contexto.tipoPeca, contexto.instrucoes, contexto.textoAtual);
+  const userPrompt = montarPrompt(tarefa, processo, contexto.cliente, contexto.tipoPeca, contexto.instrucoes, contexto.textoAtual, contexto.jurisprudencia);
 
   // --- Plano gratuito: checa e reserva a cota ANTES de gastar a chamada ---
   let clienteAdmin: ReturnType<typeof createClient> | null = null;
@@ -309,6 +314,7 @@ function montarPrompt(
   tipoPeca?: string,
   instrucoes?: string,
   textoAtual?: string,
+  jurisprudencia?: Array<{ titulo?: string; tribunal?: string; ementa?: string; link?: string; data?: string }>,
 ): string {
   const dadosProcesso = Object.keys(processo).length > 0
     ? `\nDados do processo:\n${JSON.stringify(processo, null, 2)}`
@@ -323,7 +329,26 @@ function montarPrompt(
       partes.push(`\nInstruções adicionais do(a) advogado(a):\n${instrucoes.trim()}`);
     }
     partes.push(
-      `\nEstruture a peça de acordo com as praxes forenses brasileiras (endereçamento, qualificação das partes, fatos, fundamentos jurídicos com citação de dispositivos legais pertinentes, pedidos, valor da causa, fechamento). Ao final, inclua em linha separada: "${AVISO_MINUTA}"`,
+      `\nEstruture a peça de acordo com as praxes forenses brasileiras (endereçamento, qualificação das partes, fatos, fundamentos jurídicos com citação de dispositivos legais pertinentes, pedidos, valor da causa, fechamento). Use os títulos de seção tradicionais em MAIÚSCULAS, cada um em linha própria (ex.: DOS FATOS, DO DIREITO, DOS PEDIDOS).`,
+    );
+
+    const jurisValida = (jurisprudencia ?? []).filter(j => (j.ementa || j.titulo));
+    if (jurisValida.length > 0) {
+      const blocoJuris = jurisValida.slice(0, 5).map((j, i) =>
+        `[${i + 1}] ${j.tribunal || "Tribunal não informado"} — ${j.titulo || "sem título"}${j.data ? ` (${j.data.slice(0, 10)})` : ""}\nEmenta/trecho: ${(j.ementa || "").slice(0, 500)}`
+      ).join("\n\n");
+      partes.push(
+        `\nJurisprudência real levantada sobre o tema (fonte: consulta pública ao tribunal, já verificada — pode ser citada especificamente, inclusive apontando o número entre colchetes [1], [2] etc. para indicar qual referência fundamenta cada trecho):\n${blocoJuris}`,
+        `\nCom base nessa jurisprudência, desenvolva UMA tese jurídica principal fundamentada nela. Ao final da peça, em bloco separado com o título "TESE ALTERNATIVA (SUGESTÃO GENÉRICA)", ofereça em poucas frases uma segunda linha de argumentação que NÃO dependa dessa jurisprudência específica — uma alternativa genérica para o(a) advogado(a) comparar.`,
+      );
+    } else {
+      partes.push(
+        `\nNão foi encontrada jurisprudência específica para este tema na consulta automática. Desenvolva a fundamentação com base na legislação aplicável. Ao final da peça, em bloco separado com o título "TESE ALTERNATIVA (SUGESTÃO GENÉRICA)", ofereça em poucas frases uma linha de argumentação alternativa para o(a) advogado(a) comparar.`,
+      );
+    }
+
+    partes.push(
+      `\nTudo isso — a tese principal e a alternativa — são SUGESTÕES DE PARTIDA: deixe explícito que cabe ao(à) advogado(a) revisar, aprofundar e adaptar antes de usar. Ao final de tudo, inclua em linha separada: "${AVISO_MINUTA}"`,
     );
     return partes.join("\n");
   }
