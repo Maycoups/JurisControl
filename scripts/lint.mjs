@@ -48,7 +48,11 @@ function lintIndexHtml() {
   const src = fs.readFileSync(caminho, 'utf8');
 
   const marcaAbertura = '<script type="text/babel">';
-  const inicio = src.indexOf(marcaAbertura);
+  // lastIndexOf, não indexOf: o arquivo tem comentários que mencionam esse
+  // trecho como texto (ex. explicando `defer` no <head>) — o script de
+  // verdade é sempre o último antes de </body>, então pegar a última
+  // ocorrência evita cortar a extração no lugar errado.
+  const inicio = src.lastIndexOf(marcaAbertura);
   if (inicio === -1) {
     relatarErro(arquivo, { message: `Não encontrei ${marcaAbertura} — o arquivo mudou de estrutura?` });
     return;
