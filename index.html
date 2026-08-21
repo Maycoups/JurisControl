@@ -4,28 +4,36 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>JurisControl - Gestão para Advogados Independentes</title>
-    <!-- Tailwind CSS CDN -->
+    <!-- Tailwind CSS CDN: de propósito SEM defer. Ele injeta o CSS de forma
+         assíncrona por dentro (mesmo bloqueando o parser aqui); se atrasar o
+         início desse processo com defer, sobra uma fração de segundo de tela
+         com classes de cor sem efeito (texto claro sobre fundo claro, por
+         exemplo) antes do estilo cair — foi reportado e reproduzido, por isso
+         esse aqui ficou de fora do defer, diferente dos scripts abaixo. -->
     <script src="https://cdn.tailwindcss.com"></script>
-    <!-- React & ReactDOM CDN -->
-    <script src="https://unpkg.com/react@18/umd/react.production.min.js" crossorigin></script>
-    <script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js" crossorigin></script>
-    <!-- Babel Standalone CDN -->
-    <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+    <!-- React, ReactDOM, Babel Standalone e Supabase JS: com defer, o parser HTML
+         para de bloquear em cada um pra baixar — eles baixam em paralelo e só
+         executam em ordem (a mesma de hoje) logo antes do DOMContentLoaded, que é
+         exatamente o momento em que o Babel Standalone processa o bloco de script
+         JSX lá no fim do body. Nenhum risco de flash aqui: nada é pintado antes
+         desses scripts rodarem, já que é só depois deles que o React monta. -->
+    <script defer src="https://unpkg.com/react@18/umd/react.production.min.js" crossorigin></script>
+    <script defer src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js" crossorigin></script>
+    <script defer src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+    <script defer src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
     <!-- FontAwesome for Legal & System Icons -->
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
-    <!-- Chart.js CDN -->
-    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
-    <!-- Supabase JS (autenticação, dados na nuvem, integração TJRJ, jurisprudência, IA, DataJud) -->
-    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-    <!-- html-docx-js (gratuita, MIT) — converte HTML em .docx real, 100% no navegador -->
-    <script src="https://cdn.jsdelivr.net/npm/html-docx-js/dist/html-docx.js"></script>
-    <!-- mammoth.js (gratuita, BSD) — extrai o texto de um .docx importado, 100% no navegador -->
-    <script src="https://cdn.jsdelivr.net/npm/mammoth@1/mammoth.browser.min.js"></script>
+    <!-- Chart.js saiu — não tinha nenhum gráfico usando de verdade (o painel
+         "Atuação por Área" é uma barra de progresso comum), só pesava à toa.
+         html-docx-js e mammoth.js saíram do carregamento inicial também — só
+         quem realmente exporta Word ou importa .docx paga o custo delas agora,
+         via carregarScriptSobDemanda() na hora do uso. -->
     <!-- Google Fonts: Inter (interface, volta a ser a fonte principal da versão
          original), IBM Plex Mono (só pros dados "de registro" via .jc-mono —
          CNJ, valores, datas — mantido, não fazia parte da reclamação sobre a
          paleta). Source Serif 4 saiu — a versão original não usava serifa. -->
     <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=IBM+Plex+Mono:wght@400;500;600&display=swap" rel="stylesheet">
 
     <script>
@@ -351,10 +359,36 @@
             return resultado;
         }
 
+        // --- Carregamento sob demanda de bibliotecas pesadas usadas só em telas
+        // específicas (exportar Word, importar .docx) — evita competir com
+        // React/Babel/Supabase pelo carregamento inicial da tela de login/dashboard,
+        // que a maioria das sessões nem chega a usar. Cacheia a Promise por src,
+        // então chamar duas vezes não baixa o script de novo.
+        const _scriptsCarregados = {};
+        function carregarScriptSobDemanda(src) {
+            if (_scriptsCarregados[src]) return _scriptsCarregados[src];
+            _scriptsCarregados[src] = new Promise((resolve, reject) => {
+                const tag = document.createElement('script');
+                tag.src = src;
+                tag.onload = () => resolve();
+                tag.onerror = () => { delete _scriptsCarregados[src]; reject(new Error(`Falha ao carregar ${src}`)); };
+                document.head.appendChild(tag);
+            });
+            return _scriptsCarregados[src];
+        }
+
         // --- Exportar texto como .docx real (Word) ---
         // html-docx-js roda 100% no navegador (gratuita, MIT) e converte um HTML
         // completo num Blob .docx que o Word abre nativamente, sem servidor nenhum.
-        function baixarComoWord(texto, nomeArquivo) {
+        async function baixarComoWord(texto, nomeArquivo) {
+            if (!window.htmlDocx) {
+                try {
+                    await carregarScriptSobDemanda('https://cdn.jsdelivr.net/npm/html-docx-js/dist/html-docx.js');
+                } catch {
+                    alert('Exportação para Word indisponível no momento (biblioteca não carregou). Tente copiar o texto manualmente.');
+                    return;
+                }
+            }
             if (!window.htmlDocx) {
                 alert('Exportação para Word indisponível no momento (biblioteca não carregou). Tente copiar o texto manualmente.');
                 return;
@@ -400,6 +434,10 @@
         // o app completo (AppLogado), já amarrado ao usuário logado.
         function App() {
             const [session, setSession] = useState(undefined); // undefined = verificando | null = deslogado | objeto = logado
+            // true = logado mas falta o segundo fator (MFA) pra essa sessão — só fica
+            // relevante pra quem matriculou TOTP em Configurações; quem não tem fator
+            // matriculado nunca cai nesse estado.
+            const [precisaMfa, setPrecisaMfa] = useState(false);
 
             useEffect(() => {
                 if (!supabaseClient) { setSession(null); return; }
@@ -409,6 +447,16 @@
                 });
                 return () => assinatura.subscription.unsubscribe();
             }, []);
+
+            useEffect(() => {
+                if (!supabaseClient || !session) { setPrecisaMfa(false); return; }
+                let cancelado = false;
+                supabaseClient.auth.mfa.getAuthenticatorAssuranceLevel().then(({ data, error }) => {
+                    if (cancelado || error || !data) return;
+                    setPrecisaMfa(data.nextLevel === 'aal2' && data.currentLevel !== data.nextLevel);
+                });
+                return () => { cancelado = true; };
+            }, [session]);
 
             if (!supabaseClient) {
                 return (
@@ -432,6 +480,10 @@
 
             if (!session) {
                 return <LoginView supabaseClient={supabaseClient} />;
+            }
+
+            if (precisaMfa) {
+                return <MfaChallengeView supabaseClient={supabaseClient} onVerificado={() => setPrecisaMfa(false)} />;
             }
 
             return <AppLogado session={session} supabaseClient={supabaseClient} />;
@@ -479,8 +531,11 @@
                         const { error } = await supabaseClient.auth.signInWithPassword({ email, password: senha });
                         if (error) throw error;
                     } else if (modo === 'criar') {
-                        if (senha.length < 6) {
-                            setMensagem({ tipo: 'erro', texto: 'A senha precisa ter pelo menos 6 caracteres.' });
+                        // Espelha a política configurada no servidor (minimum_password_length=8,
+                        // password_requirements="lower_upper_letters_digits") — avisa antes de
+                        // gastar uma chamada, mas o servidor também recusa se isso for burlado.
+                        if (senha.length < 8 || !/[a-z]/.test(senha) || !/[A-Z]/.test(senha) || !/[0-9]/.test(senha)) {
+                            setMensagem({ tipo: 'erro', texto: 'A senha precisa ter pelo menos 8 caracteres, com letra maiúscula, minúscula e número.' });
                             setCarregando(false);
                             return;
                         }
@@ -507,7 +562,9 @@
                         });
                         if (error) throw error;
                         if (data.session) {
-                            // Projeto sem confirmação de e-mail obrigatória: já entra direto.
+                            // Só aconteceria se a confirmação de e-mail estivesse desligada no
+                            // servidor — hoje está ligada (enable_confirmations=true), então o
+                            // caminho normal é sempre o "else" abaixo.
                         } else {
                             setMensagem({ tipo: 'sucesso', texto: 'Conta criada! Verifique seu e-mail para confirmar o cadastro antes de entrar.' });
                             setModo('entrar');
@@ -626,7 +683,7 @@
                                             type="password"
                                             value={senha}
                                             onChange={e => setSenha(e.target.value)}
-                                            minLength={6}
+                                            minLength={8}
                                             className="w-full p-2.5 bg-stone-50 border border-stone-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-amber-500"
                                             placeholder="••••••••"
                                         />
@@ -654,7 +711,7 @@
                                                 type="password"
                                                 value={senha}
                                                 onChange={e => setSenha(e.target.value)}
-                                                minLength={6}
+                                                minLength={8}
                                                 className="w-full p-2.5 bg-stone-50 border border-stone-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-amber-500"
                                                 placeholder="••••••••"
                                             />
@@ -676,6 +733,23 @@
                                 </button>
                             </form>
 
+                            {modo !== 'recuperar' && (
+                                <>
+                                    <div className="flex items-center gap-3">
+                                        <div className="flex-1 h-px bg-stone-200"></div>
+                                        <span className="text-[11px] text-stone-400 font-medium">ou</span>
+                                        <div className="flex-1 h-px bg-stone-200"></div>
+                                    </div>
+                                    <button
+                                        type="button"
+                                        onClick={() => supabaseClient.auth.signInWithOAuth({ provider: 'google', options: { redirectTo: window.location.origin } })}
+                                        className="w-full py-2.5 bg-white hover:bg-stone-50 border border-stone-200 text-stone-700 font-semibold rounded-xl text-sm shadow-sm transition flex items-center justify-center gap-2"
+                                    >
+                                        <i className="fa-brands fa-google text-[#4285F4]"></i> Continuar com Google
+                                    </button>
+                                </>
+                            )}
+
                             {modo === 'criar' && passoCadastro !== 'nome' && (
                                 <button
                                     onClick={() => { setMensagem(null); setPassoCadastro(passoCadastro === 'credenciais' ? 'oab' : 'nome'); }}
@@ -696,6 +770,174 @@
                             )}
                         </div>
                         <p className="text-center text-stone-500 text-xs mt-6">Acesso restrito. Seus dados ficam protegidos e visíveis só para você.</p>
+                    </div>
+                </div>
+            );
+        }
+
+        // Tela intermediária entre login e app: só aparece pra quem já matriculou
+        // autenticação em duas etapas (TOTP) em Configurações e ainda não passou
+        // pelo segundo fator nesta sessão — App() decide quando mostrar, com base
+        // em supabaseClient.auth.mfa.getAuthenticatorAssuranceLevel().
+        function MfaChallengeView({ supabaseClient, onVerificado }) {
+            const [codigo, setCodigo] = useState('');
+            const [carregando, setCarregando] = useState(false);
+            const [erro, setErro] = useState('');
+
+            const verificar = async (e) => {
+                e.preventDefault();
+                setErro('');
+                setCarregando(true);
+                try {
+                    const { data: fatores, error: erroFatores } = await supabaseClient.auth.mfa.listFactors();
+                    if (erroFatores) throw erroFatores;
+                    const fator = (fatores?.totp || [])[0];
+                    if (!fator) throw new Error('Nenhum fator de verificação encontrado nesta conta.');
+                    const { error } = await supabaseClient.auth.mfa.challengeAndVerify({ factorId: fator.id, code: codigo.trim() });
+                    if (error) throw error;
+                    onVerificado();
+                } catch (err) {
+                    setErro(err.message || 'Código inválido. Tente novamente.');
+                } finally {
+                    setCarregando(false);
+                }
+            };
+
+            return (
+                <div className="min-h-screen flex items-center justify-center bg-navy-950 p-4">
+                    <div className="w-full max-w-sm">
+                        <div className="flex flex-col items-center mb-8">
+                            <div className="jc-seal bg-gradient-to-tr from-amber-500 to-amber-300 text-navy-950 p-3.5 shadow-lg mb-4">
+                                <i className="fa-solid fa-shield-halved text-3xl"></i>
+                            </div>
+                            <h1 className="font-bold text-white text-2xl tracking-tight text-center">Verificação em duas etapas</h1>
+                            <p className="text-navy-300 text-sm text-center mt-1">Digite o código de 6 dígitos do seu aplicativo autenticador.</p>
+                        </div>
+
+                        <div className="bg-white rounded-2xl shadow-2xl p-6 space-y-4">
+                            {erro && (
+                                <div className="p-3 rounded-xl text-xs font-medium bg-rose-50 text-rose-700 border border-rose-200">{erro}</div>
+                            )}
+                            <form onSubmit={verificar} className="space-y-3">
+                                <div>
+                                    <label className="block text-xs font-semibold text-stone-600 mb-1">Código de verificação</label>
+                                    <input
+                                        autoFocus
+                                        required
+                                        type="text"
+                                        inputMode="numeric"
+                                        maxLength={6}
+                                        value={codigo}
+                                        onChange={e => setCodigo(e.target.value.replace(/\D/g, ''))}
+                                        className="w-full p-2.5 bg-stone-50 border border-stone-200 rounded-xl text-lg text-center tracking-[0.5em] font-mono focus:outline-none focus:ring-2 focus:ring-amber-500"
+                                        placeholder="000000"
+                                    />
+                                </div>
+                                <button
+                                    type="submit"
+                                    disabled={carregando || codigo.length !== 6}
+                                    className="w-full py-2.5 bg-amber-500 hover:bg-amber-600 text-stone-950 font-bold rounded-xl text-sm shadow-sm transition disabled:opacity-60"
+                                >
+                                    {carregando ? <i className="fa-solid fa-spinner fa-spin"></i> : 'Verificar'}
+                                </button>
+                            </form>
+                            <button
+                                type="button"
+                                onClick={() => supabaseClient.auth.signOut()}
+                                className="w-full text-center text-xs text-stone-400 hover:text-stone-600"
+                            >
+                                Sair e entrar com outra conta
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            );
+        }
+
+        // --- Assistente de boas-vindas: tutorial guiado que aparece uma única
+        // vez por conta, na primeira vez que ela loga com dados vazios. Guarda
+        // um sinalizador simples no localStorage (por userId) — não é dado de
+        // negócio, não precisa ir pro Supabase nem ter tela em Configurações.
+        // Fala em primeira pessoa, como um assistente, com transição suave
+        // (fade + leve deslocamento) entre os passos.
+        function AssistenteBoasVindas({ nomeUsuario, onConcluir }) {
+            const passos = [
+                {
+                    icone: 'fa-hand-sparkles',
+                    titulo: `Olá${nomeUsuario ? `, ${nomeUsuario}` : ''}! Eu sou o assistente do JurisControl.`,
+                    texto: 'Vou te mostrar rapidinho como o sistema funciona — leva menos de um minuto, e você pode pular quando quiser.',
+                },
+                {
+                    icone: 'fa-table-columns',
+                    titulo: 'Dashboard e Kanban',
+                    texto: 'No Dashboard você acompanha prazos e indicadores. No Kanban, arrasta os processos entre as fases do seu fluxo de trabalho.',
+                },
+                {
+                    icone: 'fa-scale-balanced',
+                    titulo: 'Processos com atualização automática',
+                    texto: 'Ao cadastrar um processo, o JurisControl busca as movimentações direto no DataJud (CNJ) — sem precisar copiar e colar nada.',
+                },
+                {
+                    icone: 'fa-sack-dollar',
+                    titulo: 'Financeiro',
+                    texto: 'Lance honorários e despesas ligados a cada processo ou cliente, e acompanhe o que está pendente ou pago.',
+                },
+                {
+                    icone: 'fa-robot',
+                    titulo: 'Assistente de IA & Documentos',
+                    texto: 'Gere petições a partir de modelos com apoio de IA, e pesquise jurisprudência direto de dentro de um processo.',
+                },
+                {
+                    icone: 'fa-shield-halved',
+                    titulo: 'Sua conta é só sua',
+                    texto: 'Em Configurações → Segurança dá pra ativar a verificação em duas etapas (MFA) pra proteger o acesso à sua conta.',
+                },
+            ];
+
+            const [passo, setPasso] = useState(0);
+            const [visivel, setVisivel] = useState(false);
+
+            useEffect(() => {
+                setVisivel(false);
+                const quadro = requestAnimationFrame(() => setVisivel(true));
+                return () => cancelAnimationFrame(quadro);
+            }, [passo]);
+
+            const ultimo = passo === passos.length - 1;
+            const atual = passos[passo];
+
+            return (
+                <div className="fixed inset-0 bg-navy-950/70 backdrop-blur-sm z-[60] flex items-center justify-center p-4">
+                    <div className={`w-full max-w-md bg-white rounded-2xl shadow-2xl overflow-hidden transition-all duration-300 ease-out ${visivel ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-3'}`}>
+                        <div className="bg-navy-900 p-6 flex items-center gap-4">
+                            <div className="jc-seal w-12 h-12 text-[9px] bg-gradient-to-tr from-amber-500 to-amber-300 text-navy-950 flex-shrink-0">
+                                <i className={`fa-solid ${atual.icone} text-lg`}></i>
+                            </div>
+                            <div>
+                                <p className="text-[10px] font-bold text-amber-400 uppercase tracking-wide">Assistente JurisControl</p>
+                                <h2 className="text-white font-bold text-lg leading-snug">{atual.titulo}</h2>
+                            </div>
+                        </div>
+                        <div className="p-6 space-y-5">
+                            <p className="text-stone-600 text-sm leading-relaxed">{atual.texto}</p>
+                            <div className="flex items-center justify-center gap-1.5">
+                                {passos.map((_, i) => (
+                                    <span key={i} className={`h-1.5 rounded-full transition-all duration-300 ${i === passo ? 'w-6 bg-amber-500' : 'w-1.5 bg-stone-200'}`}></span>
+                                ))}
+                            </div>
+                            <div className="flex items-center justify-between gap-3 pt-1">
+                                <button type="button" onClick={onConcluir} className="text-xs font-semibold text-stone-400 hover:text-stone-600">
+                                    Pular tutorial
+                                </button>
+                                <button
+                                    type="button"
+                                    onClick={() => ultimo ? onConcluir() : setPasso(p => p + 1)}
+                                    className="px-5 py-2.5 bg-amber-500 hover:bg-amber-600 text-stone-950 font-bold rounded-xl text-sm shadow-sm transition"
+                                >
+                                    {ultimo ? 'Começar a usar' : 'Avançar'}
+                                </button>
+                            </div>
+                        </div>
                     </div>
                 </div>
             );
@@ -728,6 +970,9 @@
             // UI States
             const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
             const [toastMessage, setToastMessage] = useState('');
+            // Tutorial de boas-vindas: só aparece se a conta está vazia (recém-criada
+            // ou zerada) e ainda não foi visto neste navegador (ver AssistenteBoasVindas).
+            const [mostrarOnboarding, setMostrarOnboarding] = useState(false);
 
             // Modals
             const [clientModal, setClientModal] = useState(null); // null | 'new' | clienteObjeto (edição)
@@ -760,10 +1005,21 @@
                     setTribunaisConhecimento((tribunaisRes.data || []).map(r => r.data));
                     setModelosDocumento((modelosRes.data || []).map(r => r.data));
                     setDadosCarregados(true);
+
+                    const contaVazia = !(clientesRes.data || []).length && !(processosRes.data || []).length && !(financeiroRes.data || []).length;
+                    const flagOnboarding = `jc_onboarding_concluido_${userId}`;
+                    if (contaVazia && !localStorage.getItem(flagOnboarding)) {
+                        setMostrarOnboarding(true);
+                    }
                 }
                 carregarDados();
                 return () => { cancelado = true; };
             }, [userId]);
+
+            const concluirOnboarding = () => {
+                localStorage.setItem(`jc_onboarding_concluido_${userId}`, '1');
+                setMostrarOnboarding(false);
+            };
 
             useEffect(() => {
                 localStorage.setItem('jc_alertas', JSON.stringify(alertas));
@@ -1041,6 +1297,12 @@
 
             return (
                 <div className="min-h-screen md:h-screen flex flex-col md:flex-row bg-stone-100 md:overflow-hidden">
+                    {mostrarOnboarding && (
+                        <AssistenteBoasVindas
+                            nomeUsuario={session.user.user_metadata?.nome}
+                            onConcluir={concluirOnboarding}
+                        />
+                    )}
                     {/* Toast Notification */}
                     {toastMessage && (
                         <div className="fixed bottom-5 right-5 z-50 bg-navy-900 text-white px-5 py-3 rounded-lg shadow-xl flex items-center gap-3 border border-stone-700 animate-bounce">
@@ -2929,6 +3191,9 @@
                 try {
                     let texto = '';
                     if (/\.docx$/i.test(arquivo.name)) {
+                        if (!window.mammoth) {
+                            await carregarScriptSobDemanda('https://cdn.jsdelivr.net/npm/mammoth@1/mammoth.browser.min.js');
+                        }
                         if (!window.mammoth) throw new Error('Biblioteca de leitura de .docx não carregou.');
                         const buffer = await arquivo.arrayBuffer();
                         const resultado = await window.mammoth.extractRawText({ arrayBuffer: buffer });
@@ -3594,6 +3859,148 @@ OAB nº ${advogadoOab}`;
         // Function (DEFAULT_DATAJUD_API_KEY em supabase/functions/datajud-busca),
         // não exige cadastro nem chave pessoal — não fazia sentido pedir uma chave
         // que ninguém precisa ter.
+        // Matrícula/remoção de autenticação em duas etapas (TOTP) — usa a API de
+        // MFA que já vem no supabase-js (auth.mfa.*), sem nada de servidor próprio.
+        // App() é quem decide exigir o código no login, com base no fator que
+        // aparecer aqui como "verified".
+        function SegurancaMfaCard({ supabaseClient }) {
+            const [fatores, setFatores] = useState(null); // null = carregando
+            const [matriculando, setMatriculando] = useState(null); // { id, qrCode, secret } | null
+            const [codigo, setCodigo] = useState('');
+            const [processando, setProcessando] = useState(false);
+            const [mensagem, setMensagem] = useState(null);
+
+            const carregarFatores = async () => {
+                const { data, error } = await supabaseClient.auth.mfa.listFactors();
+                if (!error) setFatores((data?.totp || []).filter(f => f.status === 'verified'));
+            };
+
+            useEffect(() => { carregarFatores(); }, []);
+
+            const iniciarMatricula = async () => {
+                setMensagem(null);
+                setProcessando(true);
+                try {
+                    const { data, error } = await supabaseClient.auth.mfa.enroll({ factorType: 'totp' });
+                    if (error) throw error;
+                    setMatriculando({ id: data.id, qrCode: data.totp.qr_code, secret: data.totp.secret });
+                } catch (err) {
+                    setMensagem({ tipo: 'erro', texto: err.message || 'Não foi possível iniciar a matrícula.' });
+                } finally {
+                    setProcessando(false);
+                }
+            };
+
+            const confirmarMatricula = async (e) => {
+                e.preventDefault();
+                setProcessando(true);
+                setMensagem(null);
+                try {
+                    const { error } = await supabaseClient.auth.mfa.challengeAndVerify({ factorId: matriculando.id, code: codigo.trim() });
+                    if (error) throw error;
+                    setMatriculando(null);
+                    setCodigo('');
+                    setMensagem({ tipo: 'sucesso', texto: 'Autenticação em duas etapas ativada!' });
+                    carregarFatores();
+                } catch (err) {
+                    setMensagem({ tipo: 'erro', texto: err.message || 'Código inválido. Confira o app autenticador e tente de novo.' });
+                } finally {
+                    setProcessando(false);
+                }
+            };
+
+            const cancelarMatricula = async () => {
+                if (matriculando) await supabaseClient.auth.mfa.unenroll({ factorId: matriculando.id }).catch(() => {});
+                setMatriculando(null);
+                setCodigo('');
+            };
+
+            const remover = async (factorId) => {
+                if (!window.confirm('Remover a autenticação em duas etapas desta conta?')) return;
+                setProcessando(true);
+                const { error } = await supabaseClient.auth.mfa.unenroll({ factorId });
+                setProcessando(false);
+                if (error) {
+                    setMensagem({ tipo: 'erro', texto: error.message || 'Não foi possível remover.' });
+                } else {
+                    setMensagem({ tipo: 'sucesso', texto: 'Autenticação em duas etapas removida.' });
+                    carregarFatores();
+                }
+            };
+
+            const fatorAtivo = fatores && fatores[0];
+
+            return (
+                <div className="bg-white rounded-2xl border border-stone-200 shadow-sm p-5 space-y-4">
+                    <div className="flex items-center justify-between gap-4 flex-wrap">
+                        <div>
+                            <h3 className="font-bold text-stone-900 text-sm flex items-center gap-2">
+                                <i className="fa-solid fa-shield-halved text-indigo-500"></i> Segurança — Autenticação em duas etapas
+                            </h3>
+                            <p className="text-stone-500 text-xs mt-0.5">Pede um código de 6 dígitos do seu celular (app autenticador) além da senha, a cada login.</p>
+                        </div>
+                        {fatorAtivo ? (
+                            <span className="text-[10px] font-bold px-2 py-0.5 rounded uppercase bg-emerald-100 text-emerald-700 whitespace-nowrap">Ativa</span>
+                        ) : fatores !== null && (
+                            <span className="text-[10px] font-bold px-2 py-0.5 rounded uppercase bg-stone-100 text-stone-500 whitespace-nowrap">Desativada</span>
+                        )}
+                    </div>
+
+                    {mensagem && (
+                        <div className={`p-3 rounded-xl text-xs font-medium ${mensagem.tipo === 'sucesso' ? 'bg-emerald-50 text-emerald-700 border border-emerald-200' : 'bg-rose-50 text-rose-700 border border-rose-200'}`}>
+                            {mensagem.texto}
+                        </div>
+                    )}
+
+                    {matriculando ? (
+                        <div className="space-y-3 p-4 bg-stone-50 border border-stone-200 rounded-xl">
+                            <p className="text-xs text-stone-600">
+                                Escaneie o QR code com um app autenticador (Google Authenticator, Authy, etc.) ou digite o código manualmente, depois confirme com o número de 6 dígitos gerado.
+                            </p>
+                            <div
+                                className="w-40 h-40 mx-auto bg-white p-2 rounded-lg border border-stone-200 [&_svg]:w-full [&_svg]:h-full"
+                                dangerouslySetInnerHTML={{ __html: matriculando.qrCode }}
+                            />
+                            <p className="text-[11px] text-stone-400 text-center font-mono break-all">{matriculando.secret}</p>
+                            <form onSubmit={confirmarMatricula} className="flex gap-2">
+                                <input
+                                    autoFocus
+                                    required
+                                    type="text"
+                                    inputMode="numeric"
+                                    maxLength={6}
+                                    value={codigo}
+                                    onChange={e => setCodigo(e.target.value.replace(/\D/g, ''))}
+                                    placeholder="000000"
+                                    className="flex-1 p-2.5 bg-white border border-stone-200 rounded-xl text-sm text-center tracking-[0.4em] font-mono focus:outline-none focus:ring-2 focus:ring-amber-500"
+                                />
+                                <button type="submit" disabled={processando || codigo.length !== 6} className="px-4 py-2 bg-amber-500 hover:bg-amber-600 disabled:opacity-50 text-stone-950 font-semibold rounded-xl text-sm">
+                                    {processando ? <i className="fa-solid fa-spinner fa-spin"></i> : 'Confirmar'}
+                                </button>
+                                <button type="button" onClick={cancelarMatricula} className="px-3 py-2 bg-stone-100 hover:bg-stone-200 text-stone-600 rounded-xl text-sm">
+                                    Cancelar
+                                </button>
+                            </form>
+                        </div>
+                    ) : fatorAtivo ? (
+                        <div className="flex items-center justify-between gap-4 p-3 bg-emerald-50 border border-emerald-200 rounded-xl">
+                            <p className="text-xs text-emerald-800">
+                                <i className="fa-solid fa-circle-check mr-1.5"></i>
+                                Ativa desde {new Date(fatorAtivo.created_at).toLocaleDateString('pt-BR')}.
+                            </p>
+                            <button onClick={() => remover(fatorAtivo.id)} disabled={processando} className="text-xs font-semibold text-rose-600 hover:text-rose-800 whitespace-nowrap">
+                                Remover
+                            </button>
+                        </div>
+                    ) : (
+                        <button onClick={iniciarMatricula} disabled={processando || fatores === null} className="px-4 py-2.5 bg-amber-500 hover:bg-amber-600 disabled:opacity-50 text-stone-950 font-semibold rounded-xl text-sm flex items-center gap-2">
+                            {processando ? <i className="fa-solid fa-spinner fa-spin"></i> : <i className="fa-solid fa-shield-halved"></i>} Ativar autenticação em duas etapas
+                        </button>
+                    )}
+                </div>
+            );
+        }
+
         function ConfiguracoesView({ session, supabaseClient }) {
             const [seguro, setSeguro] = useState(null); // null=carregando | true=safeStorage (Electron) | false=localStorage (navegador)
             const [mostrarTermos, setMostrarTermos] = useState(false);
@@ -3633,6 +4040,8 @@ OAB nº ${advogadoOab}`;
                         </div>
                         <ThemeToggle />
                     </div>
+
+                    <SegurancaMfaCard supabaseClient={supabaseClient} />
 
                     <div className="bg-white rounded-2xl border border-stone-200 shadow-sm p-5 space-y-4">
                         <h3 className="font-bold text-stone-900 text-sm">Meu Perfil</h3>

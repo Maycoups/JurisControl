@@ -110,6 +110,37 @@ Tabelas à parte (não seguem o padrão JSONB, têm propósito diferente):
 - Todas as Edge Functions (exceto `verificar-convite`, que precisa ser
   chamável antes do login) exigem um usuário autenticado, checado via
   `_shared/auth.ts`.
+- **Senha**: mínimo 8 caracteres, com maiúscula+minúscula+número
+  (`minimum_password_length`/`password_requirements` em
+  `supabase/config.toml`, validado também no cliente antes de gastar uma
+  chamada). O hash é feito pelo próprio Supabase Auth (bcrypt), a senha em
+  texto puro nunca chega a ficar salva em lugar nenhum.
+- **MFA (autenticação em duas etapas, TOTP)**: disponível desde a branch
+  `dev/seguranca-e-performance` — opt-in, ativado em Configurações
+  (`SegurancaMfaCard`, `index.html`). Quem ativa passa a precisar do
+  código de 6 dígitos em todo login novo (`MfaChallengeView`, decidido em
+  `App()` via `auth.mfa.getAuthenticatorAssuranceLevel()`). É 100% API do
+  `supabase-js` já embutida no app — nada de servidor próprio.
+- **Login com Google (OAuth) — botão pronto, falta a configuração no
+  Supabase**: o botão "Continuar com Google" já chama
+  `auth.signInWithOAuth({ provider: 'google' })`, e o convite
+  (`allowed_emails`) vale pra qualquer provedor, sem exceção. O que falta
+  é uma configuração manual, feita uma vez, fora do código:
+  1. No [Google Cloud Console](https://console.cloud.google.com/), criar
+     um projeto (ou usar um existente) e configurar a tela de
+     consentimento OAuth (tipo "Externo" é suficiente pro uso atual).
+  2. Em "Credenciais" → "Criar credenciais" → "ID do cliente OAuth", tipo
+     "Aplicativo da Web". Em "URIs de redirecionamento autorizados",
+     adicionar exatamente:
+     `https://yenznpfqqocdkzlcfhdv.supabase.co/auth/v1/callback`
+  3. Copiar o **Client ID** e o **Client Secret** gerados.
+  4. No painel do Supabase: Authentication → Providers → Google → ativar
+     e colar as duas credenciais. Salvar.
+  5. Testar: o botão já existe no login, é só ele passar a completar o
+     fluxo de verdade a partir desse ponto.
+  (Ligar isso direto no painel do Supabase, e não via `config.toml`/CLI —
+  `supabase config push` sincroniza o arquivo inteiro, é fácil mexer em
+  algo sem querer junto; já aconteceu uma vez neste projeto.)
 
 ## 6. Sistema de IA
 
