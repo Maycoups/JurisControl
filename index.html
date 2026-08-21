@@ -257,7 +257,7 @@
 
         const CNJ_REGEX = /^\d{7}-\d{2}\.\d{4}\.\d{1}\.\d{2}\.\d{4}$/;
 
-        // Termos de Uso e Política de Privacidade — texto redigido fora do app (LGPD),
+        // Termos de Uso e Política de Privacidade —(LGPD),
         // exibido em Configurações. Estrutura: cada item é [título, corpo] ou
         // [título, [subitens]] pra tabela da seção 2.2.
         const TERMOS_DE_USO = {
@@ -3694,17 +3694,175 @@ OAB nº ${advogadoOab}`;
             );
         }
 
+        // --- Renderização "página de documento" da minuta gerada -------------------
+        // O texto continua sendo sempre uma string simples (mesmo formato usado em
+        // baixarComoWord, copiar, modelos salvos, revisão por IA) — a formatação
+        // visual (títulos em negrito, parágrafos espaçados) é só uma interpretação
+        // desse texto na hora de exibir, nunca fica gravada junto. Detecta título de
+        // seção pela convenção que já pedimos à IA no prompt: linha curta,
+        // inteiramente em maiúsculas (ex: "DOS FATOS").
+        function escaparHtml(texto) {
+            const div = document.createElement('div');
+            div.textContent = texto;
+            return div.innerHTML;
+        }
+
+        function ehTituloDeSecao(linha) {
+            const t = linha.trim();
+            if (!t || t.length > 70) return false;
+            const letras = t.replace(/[^A-ZÀ-ÚÇa-zà-úç]/g, '');
+            if (letras.length < 3) return false;
+            return t === t.toUpperCase() && t !== t.toLowerCase();
+        }
+
+        function construirHtmlDocumento(texto) {
+            const blocos = (texto || '').split(/\n{2,}/);
+            return blocos.map(bloco => {
+                const linhas = bloco.split('\n').map(l => l.trim()).filter(Boolean);
+                if (linhas.length === 0) return '';
+                if (linhas.length === 1 && ehTituloDeSecao(linhas[0])) {
+                    return `<p class="font-bold text-stone-900 mt-6 mb-2 first:mt-0">${escaparHtml(linhas[0])}</p>`;
+                }
+                const html = linhas.map(escaparHtml).join('<br/>');
+                return `<p class="mb-4 leading-relaxed text-stone-800 text-justify">${html}</p>`;
+            }).filter(Boolean).join('');
+        }
+
+        // Área "página" editável: HTML só é (re)montado a partir do texto quando NÃO
+        // se está editando (evita o clássico bug de cursor pulando quando o React
+        // re-renderiza um contentEditable a cada tecla) — a sincronização de volta
+        // pro estado (texto puro, via innerText) só acontece ao sair do campo.
+        function PaginaDocumentoEditavel({ texto, onChangeTexto }) {
+            const ref = useRef(null);
+            const editandoRef = useRef(false);
+
+            useEffect(() => {
+                if (ref.current && !editandoRef.current) {
+                    ref.current.innerHTML = construirHtmlDocumento(texto);
+                }
+            }, [texto]);
+
+            return (
+                <div
+                    ref={ref}
+                    contentEditable
+                    suppressContentEditableWarning
+                    onFocus={() => { editandoRef.current = true; }}
+                    onBlur={(e) => {
+                        editandoRef.current = false;
+                        const novo = e.currentTarget.innerText.replace(/\n{3,}/g, '\n\n');
+                        if (novo.trim() && novo !== texto) onChangeTexto(novo);
+                    }}
+                    className="bg-white rounded-lg shadow-[0_1px_4px_rgba(15,23,42,0.08)] border border-stone-200 p-8 md:p-12 max-w-3xl mx-auto min-h-[500px] focus:outline-none focus:ring-2 focus:ring-amber-400"
+                />
+            );
+        }
+
+        // Painel completo de exibição de uma peça gerada: aviso, página editável e,
+        // se houver, a jurisprudência real usada para fundamentar a tese —
+        // reaproveita o mesmo card (com link pra íntegra) da aba Jurisprudência do
+        // processo, pra manter os dois lugares consistentes.
+        // Jurisprudência fica de fora daqui de propósito — vai num painel à
+        // esquerda (junto dos Parâmetros), não embaixo da página do documento. Ver
+        // PainelJurisprudenciaLateral em CriacaoPecasIAView.
+        function PecaGeradaViewer({ texto, onChangeTexto, editado }) {
+            if (!texto) return null;
+            const linhaAviso = texto.split('\n').find(l => l.includes('MINUTA GERADA POR IA') || l.includes('SUGESTÃO GERADA POR IA'));
+            const textoSemAviso = linhaAviso ? texto.replace(linhaAviso, '').replace(/\n{3,}/g, '\n\n').trim() : texto;
+
+            return (
+                <div className="space-y-4">
+                    {linhaAviso && (
+                        <div className="max-w-3xl mx-auto p-3 bg-amber-50 border border-amber-200 rounded-xl text-xs text-amber-900 flex items-start gap-2">
+                            <i className="fa-solid fa-triangle-exclamation mt-0.5"></i>
+                            <span>{linhaAviso.replace(/^⚠️\s*/, '')}</span>
+                        </div>
+                    )}
+                    <PaginaDocumentoEditavel texto={textoSemAviso} onChangeTexto={(novoCorpo) => onChangeTexto(linhaAviso ? `${novoCorpo}\n\n${linhaAviso}` : novoCorpo)} />
+                    <p className="max-w-3xl mx-auto text-[11px] text-stone-400 flex items-center gap-1.5">
+                        <i className="fa-solid fa-pen"></i> Clique no texto acima para editar diretamente.
+                        {editado && <span className="text-emerald-600 font-semibold">Editado manualmente.</span>}
+                    </p>
+                </div>
+            );
+        }
+
+        // Indicador de progresso em etapas + esqueleto de linhas de texto — só pra
+        // reduzir a sensação de espera parada durante a geração (que faz duas
+        // chamadas em sequência: busca de jurisprudência, depois a IA). Não muda o
+        // tempo real, só dá mais informação visual de que algo está acontecendo.
+        function PainelCarregandoPeca({ etapa }) {
+            const etapas = [
+                { id: 'jurisprudencia', label: 'Buscando jurisprudência relacionada' },
+                { id: 'minuta', label: 'Redigindo a minuta com IA' },
+            ];
+            const indiceAtual = etapas.findIndex(e => e.id === etapa);
+            return (
+                <div className="max-w-3xl mx-auto space-y-6">
+                    <div className="space-y-2">
+                        {etapas.map((e, i) => {
+                            const concluida = indiceAtual > i;
+                            const ativa = indiceAtual === i;
+                            return (
+                                <div key={e.id} className={`flex items-center gap-2.5 text-sm ${ativa ? 'text-stone-800 font-semibold' : concluida ? 'text-emerald-600' : 'text-stone-300'}`}>
+                                    {concluida ? <i className="fa-solid fa-circle-check"></i> : ativa ? <i className="fa-solid fa-spinner fa-spin"></i> : <i className="fa-regular fa-circle"></i>}
+                                    {e.label}
+                                </div>
+                            );
+                        })}
+                    </div>
+                    <div className="bg-white rounded-lg shadow-[0_1px_4px_rgba(15,23,42,0.08)] border border-stone-200 p-8 md:p-12 space-y-3 animate-pulse">
+                        <div className="h-4 bg-stone-100 rounded w-2/3 mx-auto mb-6"></div>
+                        {[100, 95, 88, 92, 60, 100, 97, 80].map((w, i) => (
+                            <div key={i} className="h-3 bg-stone-100 rounded" style={{ width: `${w}%` }}></div>
+                        ))}
+                    </div>
+                </div>
+            );
+        }
+
+        // Painel lateral (esquerda) com a jurisprudência real usada pra fundamentar
+        // a tese — fica ao lado dos Parâmetros, não embaixo do documento, pra servir
+        // de referência/fonte enquanto se lê ou edita a minuta ao lado.
+        function PainelJurisprudenciaLateral({ jurisprudencia, buscando }) {
+            if (!buscando && (!jurisprudencia || jurisprudencia.length === 0)) return null;
+            return (
+                <div className="bg-white p-5 rounded-2xl border border-stone-200 shadow-sm space-y-3">
+                    <h3 className="font-bold text-stone-900 text-sm flex items-center gap-2">
+                        <i className="fa-solid fa-scale-balanced text-indigo-500"></i> Jurisprudência usada
+                    </h3>
+                    {buscando && (
+                        <p className="text-xs text-stone-400"><i className="fa-solid fa-spinner fa-spin mr-2"></i>Buscando jurisprudência relacionada...</p>
+                    )}
+                    {!buscando && jurisprudencia && jurisprudencia.length === 0 && (
+                        <p className="text-xs text-stone-400">Nenhuma jurisprudência relacionada encontrada para fundamentar esta minuta.</p>
+                    )}
+                    {!buscando && jurisprudencia && jurisprudencia.length > 0 && (
+                        <div className="space-y-3 max-h-[70vh] overflow-y-auto pr-1">
+                            {jurisprudencia.map((r, idx) => <JurisprudenciaResultCard key={idx} r={r} />)}
+                        </div>
+                    )}
+                </div>
+            );
+        }
+
         function CriacaoPecasIAView({ clients, processes, supabaseClient, session }) {
             const [tipoPeca, setTipoPeca] = useState(TIPOS_PECA_IA[0]);
             const [clienteId, setClienteId] = useState('');
             const [processoId, setProcessoId] = useState('');
             const [instrucoes, setInstrucoes] = useState('');
             const [loading, setLoading] = useState(false);
+            // 'jurisprudencia' | 'minuta' — só pra mostrar em qual etapa a geração
+            // está agora, reduz a sensação de espera parada num processo que tem
+            // duas chamadas de rede em sequência.
+            const [etapa, setEtapa] = useState(null);
             const [erro, setErro] = useState(null);
             // Muda a cada geração bem-sucedida — usado como `key` do banner de uso
             // gratuito abaixo, pra forçar ele a reconsultar a contagem atualizada.
             const [atualizacoesUso, setAtualizacoesUso] = useState(0);
             const [resultado, setResultado] = useState(null);
+            const [jurisprudencia, setJurisprudencia] = useState(null);
+            const [editado, setEditado] = useState(false);
 
             const gerar = async () => {
                 if (!supabaseClient) {
@@ -3715,11 +3873,32 @@ OAB nº ${advogadoOab}`;
                 setLoading(true);
                 setErro(null);
                 setResultado(null);
+                setJurisprudencia(null);
+                setEditado(false);
 
                 const clienteSelecionado = clients.find(c => c.id === clienteId);
                 const processoSelecionado = processes.find(p => p.id === processoId);
                 const { apiKey, provedor } = await resolverProvedorIA();
 
+                // Etapa 1: busca jurisprudência real relacionada (mesma fonte da aba
+                // Jurisprudência de um processo) — usada tanto pra fundamentar a tese
+                // no prompt quanto pra mostrar as fontes, com link, depois de pronto.
+                setEtapa('jurisprudencia');
+                let jurisEncontrada = [];
+                const acaoCurta = (processoSelecionado?.acao || '').split(/\s+/).slice(0, 8).join(' ');
+                const termoJuris = (acaoCurta || processoSelecionado?.area || instrucoes.split(/\s+/).slice(0, 10).join(' ') || tipoPeca).trim();
+                try {
+                    const { data: dataJuris } = await invocarFunction(supabaseClient, 'busca-jurisprudencia', {
+                        body: { termo: termoJuris, uf: processoSelecionado?.uf || 'RJ' },
+                    });
+                    jurisEncontrada = dataJuris?.resultados || [];
+                    setJurisprudencia(jurisEncontrada);
+                } catch (err) {
+                    console.error('Erro ao buscar jurisprudência (não bloqueia a geração):', err);
+                }
+
+                // Etapa 2: gera a minuta, já com a jurisprudência encontrada no contexto.
+                setEtapa('minuta');
                 try {
                     const { data, error } = await invocarFunction(supabaseClient, 'criar-peca-ia', {
                         body: {
@@ -3729,6 +3908,7 @@ OAB nº ${advogadoOab}`;
                                 instrucoes,
                                 cliente: clienteSelecionado || undefined,
                                 processo: processoSelecionado || undefined,
+                                jurisprudencia: jurisEncontrada.length > 0 ? jurisEncontrada : undefined,
                             },
                             apiKey: apiKey || undefined,
                             provedor: provedor || undefined,
@@ -3748,7 +3928,13 @@ OAB nº ${advogadoOab}`;
                     setErro('Erro ao gerar a peça. Verifique sua conexão, ou conecte sua própria chave em Configurações se o plano gratuito estiver indisponível.');
                 } finally {
                     setLoading(false);
+                    setEtapa(null);
                 }
+            };
+
+            const alterarTexto = (novoTexto) => {
+                setResultado(r => ({ ...r, texto: novoTexto }));
+                setEditado(true);
             };
 
             const copiarTexto = () => {
@@ -3775,6 +3961,7 @@ OAB nº ${advogadoOab}`;
                     <UsoIAGratuitaBanner key={atualizacoesUso} supabaseClient={supabaseClient} session={session} />
 
                     <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+                        <div className="space-y-6">
                         <div className="bg-white p-5 rounded-2xl border border-stone-200 shadow-sm space-y-4">
                             <h3 className="font-bold text-stone-900 text-base">Parâmetros</h3>
 
@@ -3827,8 +4014,11 @@ OAB nº ${advogadoOab}`;
                             )}
                         </div>
 
-                        <div className="lg:col-span-2 bg-white rounded-2xl border border-stone-200 shadow-sm flex flex-col">
-                            <div className="p-4 border-b border-stone-200 flex items-center justify-between">
+                        <PainelJurisprudenciaLateral jurisprudencia={jurisprudencia} buscando={etapa === 'jurisprudencia'} />
+                        </div>
+
+                        <div className="lg:col-span-2 bg-stone-50 rounded-2xl border border-stone-200 shadow-sm flex flex-col">
+                            <div className="p-4 border-b border-stone-200 flex items-center justify-between bg-white rounded-t-2xl">
                                 <h3 className="font-bold text-stone-900 text-sm">Minuta Gerada</h3>
                                 {resultado && (
                                     <div className="flex gap-2">
@@ -3841,10 +4031,16 @@ OAB nº ${advogadoOab}`;
                                     </div>
                                 )}
                             </div>
-                            <div className="p-8 text-stone-800 whitespace-pre-line leading-relaxed flex-1 overflow-y-auto" style={{ minHeight: '400px' }}>
-                                {loading && <p className="text-sm text-stone-400 font-sans"><i className="fa-solid fa-spinner fa-spin mr-2"></i>A IA está redigindo a minuta...</p>}
-                                {!loading && !resultado && <p className="text-sm text-stone-400 font-sans">Preencha os parâmetros ao lado e clique em "Gerar com IA".</p>}
-                                {resultado && resultado.texto}
+                            <div className="p-6 flex-1 overflow-y-auto" style={{ minHeight: '400px' }}>
+                                {loading && <PainelCarregandoPeca etapa={etapa} />}
+                                {!loading && !resultado && (
+                                    <div className="h-full flex items-center justify-center">
+                                        <p className="text-sm text-stone-400 font-sans">Preencha os parâmetros ao lado e clique em "Gerar com IA".</p>
+                                    </div>
+                                )}
+                                {!loading && resultado && (
+                                    <PecaGeradaViewer texto={resultado.texto} onChangeTexto={alterarTexto} editado={editado} />
+                                )}
                             </div>
                         </div>
                     </div>
@@ -4001,6 +4197,85 @@ OAB nº ${advogadoOab}`;
             );
         }
 
+        // Perfil de administrador / "modo avançado" — ver migration
+        // 20260821000000_perfil_administrador.sql e a Edge Function
+        // ativar-modo-avancado pras três barreiras reais (nenhuma delas confia
+        // no front-end). Este card só decide se aparece — quem decide se o
+        // clique funciona é sempre o servidor. Ainda não existe nenhuma
+        // funcionalidade nova atrás do modo avançado, só o próprio toggle.
+        function ModoAvancadoCard({ session, supabaseClient }) {
+            const [temMfa, setTemMfa] = useState(null); // null=carregando
+            const [ativando, setAtivando] = useState(false);
+            const [resultado, setResultado] = useState(null); // { tipo, texto } | null
+            const [ativo, setAtivo] = useState(false); // só nesta sessão — nunca fica salvo
+
+            const checarMfa = () => {
+                supabaseClient.auth.mfa.listFactors().then(({ data, error }) => {
+                    if (!error) setTemMfa((data?.totp || []).some(f => f.status === 'verified'));
+                });
+            };
+
+            useEffect(checarMfa, []);
+
+            const ativar = async () => {
+                setAtivando(true);
+                setResultado(null);
+                checarMfa(); // reflete no card se o MFA foi ativado nesta mesma visita, sem precisar recarregar
+                const { data, error } = await invocarFunction(supabaseClient, 'ativar-modo-avancado', {});
+                setAtivando(false);
+                if (error) {
+                    setResultado({ tipo: 'erro', texto: error.message || 'Não foi possível verificar agora. Tente novamente.' });
+                    return;
+                }
+                if (data?.liberado) {
+                    setAtivo(true);
+                    setResultado({ tipo: 'sucesso', texto: 'Modo avançado ativado nesta sessão. Ainda não há nenhuma funcionalidade adicional.' });
+                } else {
+                    setAtivo(false);
+                    setResultado({ tipo: 'erro', texto: data?.motivo || 'Não autorizado.' });
+                }
+            };
+
+            return (
+                <div className="bg-white rounded-2xl border border-amber-300 shadow-sm p-5 space-y-4">
+                    <div className="flex items-center justify-between gap-4 flex-wrap">
+                        <div>
+                            <h3 className="font-bold text-stone-900 text-sm flex items-center gap-2">
+                                <i className="fa-solid fa-user-shield text-amber-600"></i> Modo Avançado (administrador)
+                            </h3>
+                            <p className="text-stone-500 text-xs mt-0.5">
+                                Visível só nesta conta. Checado a cada ativação: lista oculta de administradores + verificação em duas etapas ativa — nada fica liberado sem os dois.
+                            </p>
+                        </div>
+                        {ativo && (
+                            <span className="text-[10px] font-bold px-2 py-0.5 rounded uppercase bg-emerald-100 text-emerald-700 whitespace-nowrap">Ativo nesta sessão</span>
+                        )}
+                    </div>
+
+                    {temMfa === false && (
+                        <div className="p-3 rounded-xl text-xs font-medium bg-amber-50 text-amber-800 border border-amber-200">
+                            A verificação em duas etapas ainda não está ativa nesta conta — ative no card acima antes de tentar.
+                        </div>
+                    )}
+
+                    {resultado && (
+                        <div className={`p-3 rounded-xl text-xs font-medium ${resultado.tipo === 'sucesso' ? 'bg-emerald-50 text-emerald-700 border border-emerald-200' : 'bg-rose-50 text-rose-700 border border-rose-200'}`}>
+                            {resultado.texto}
+                        </div>
+                    )}
+
+                    <button
+                        onClick={ativar}
+                        disabled={ativando}
+                        className="px-4 py-2.5 bg-navy-900 hover:bg-navy-800 disabled:opacity-50 text-white font-semibold rounded-xl text-sm flex items-center gap-2"
+                    >
+                        {ativando ? <i className="fa-solid fa-spinner fa-spin"></i> : <i className="fa-solid fa-user-shield"></i>}
+                        {ativo ? 'Verificar novamente' : 'Ativar modo avançado'}
+                    </button>
+                </div>
+            );
+        }
+
         function ConfiguracoesView({ session, supabaseClient }) {
             const [seguro, setSeguro] = useState(null); // null=carregando | true=safeStorage (Electron) | false=localStorage (navegador)
             const [mostrarTermos, setMostrarTermos] = useState(false);
@@ -4042,6 +4317,10 @@ OAB nº ${advogadoOab}`;
                     </div>
 
                     <SegurancaMfaCard supabaseClient={supabaseClient} />
+
+                    {session?.user?.app_metadata?.role === 'admin' && (
+                        <ModoAvancadoCard session={session} supabaseClient={supabaseClient} />
+                    )}
 
                     <div className="bg-white rounded-2xl border border-stone-200 shadow-sm p-5 space-y-4">
                         <h3 className="font-bold text-stone-900 text-sm">Meu Perfil</h3>

@@ -456,3 +456,9 @@ enabled = true
 verify_jwt = false
 import_map = "./functions/verificar-convite/deno.json"
 entrypoint = "./functions/verificar-convite/index.ts"
+
+[functions.ativar-modo-avancado]
+enabled = true
+verify_jwt = true
+import_map = "./functions/ativar-modo-avancado/deno.json"
+entrypoint = "./functions/ativar-modo-avancado/index.ts"
