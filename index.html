@@ -4077,7 +4077,22 @@ OAB nº ${advogadoOab}`;
                 setMensagem(null);
                 setProcessando(true);
                 try {
-                    const { data, error } = await supabaseClient.auth.mfa.enroll({ factorType: 'totp' });
+                    // Uma tentativa anterior que não chegou a ser confirmada (ex: saiu da
+                    // tela no meio do processo) deixa um fator "unverified" pra trás — o
+                    // Supabase recusa uma nova matrícula em cima dele com "A factor with
+                    // the friendly name... already exists". Limpa qualquer fator TOTP não
+                    // verificado antes de tentar de novo (um fator já verificado nunca
+                    // chega aqui, porque aí o botão nem apareceria).
+                    const { data: existentes } = await supabaseClient.auth.mfa.listFactors();
+                    const pendentes = (existentes?.totp || []).filter(f => f.status !== 'verified');
+                    for (const fator of pendentes) {
+                        await supabaseClient.auth.mfa.unenroll({ factorId: fator.id }).catch(() => {});
+                    }
+
+                    const { data, error } = await supabaseClient.auth.mfa.enroll({
+                        factorType: 'totp',
+                        friendlyName: `juriscontrol-${Date.now()}`,
+                    });
                     if (error) throw error;
                     setMatriculando({ id: data.id, qrCode: data.totp.qr_code, secret: data.totp.secret });
                 } catch (err) {
@@ -4153,10 +4168,23 @@ OAB nº ${advogadoOab}`;
                             <p className="text-xs text-stone-600">
                                 Escaneie o QR code com um app autenticador (Google Authenticator, Authy, etc.) ou digite o código manualmente, depois confirme com o número de 6 dígitos gerado.
                             </p>
-                            <div
-                                className="w-40 h-40 mx-auto bg-white p-2 rounded-lg border border-stone-200 [&_svg]:w-full [&_svg]:h-full"
-                                dangerouslySetInnerHTML={{ __html: matriculando.qrCode }}
-                            />
+                            {/* O Supabase manda o QR code como data URI (data:image/svg+xml;...),
+                                não como marcação SVG solta — tratar como HTML quebrava a exibição
+                                (só o texto cru aparecia, e a caixa do QR colapsava, empurrando o
+                                segredo abaixo pro meio da tela). Cobre os dois formatos por
+                                garantia, caso a API volte a mandar SVG puro no futuro. */}
+                            {matriculando.qrCode.trim().startsWith('<svg') ? (
+                                <div
+                                    className="w-40 h-40 mx-auto bg-white p-2 rounded-lg border border-stone-200 [&_svg]:w-full [&_svg]:h-full"
+                                    dangerouslySetInnerHTML={{ __html: matriculando.qrCode }}
+                                />
+                            ) : (
+                                <img
+                                    src={matriculando.qrCode}
+                                    alt="QR code para autenticação em duas etapas"
+                                    className="w-40 h-40 mx-auto bg-white p-2 rounded-lg border border-stone-200"
+                                />
+                            )}
                             <p className="text-[11px] text-stone-400 text-center font-mono break-all">{matriculando.secret}</p>
                             <form onSubmit={confirmarMatricula} className="flex gap-2">
                                 <input
