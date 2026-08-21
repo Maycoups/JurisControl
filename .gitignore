@@ -11,3 +11,9 @@ dist/
 # do STF — matéria-prima, não código nem documentação. Ver
 # docs/arquitetura/ARQUITETURA.md.
 pesquisa-stf-dados-abertos/
+
+# Código-fonte de referência do Umo Editor (Vue3+Tiptap), baixado só pra
+# avaliação — não usamos o pacote em si, só o Tiptap puro via esm.sh (ver
+# EditorPecaTiptap no index.html). Não faz sentido versionar 2MB+ de fonte
+# de terceiro que não entra no build de nada.
+docs/Reps/
