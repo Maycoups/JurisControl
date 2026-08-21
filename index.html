@@ -4001,6 +4001,85 @@ OAB nº ${advogadoOab}`;
             );
         }
 
+        // Perfil de administrador / "modo avançado" — ver migration
+        // 20260821000000_perfil_administrador.sql e a Edge Function
+        // ativar-modo-avancado pras três barreiras reais (nenhuma delas confia
+        // no front-end). Este card só decide se aparece — quem decide se o
+        // clique funciona é sempre o servidor. Ainda não existe nenhuma
+        // funcionalidade nova atrás do modo avançado, só o próprio toggle.
+        function ModoAvancadoCard({ session, supabaseClient }) {
+            const [temMfa, setTemMfa] = useState(null); // null=carregando
+            const [ativando, setAtivando] = useState(false);
+            const [resultado, setResultado] = useState(null); // { tipo, texto } | null
+            const [ativo, setAtivo] = useState(false); // só nesta sessão — nunca fica salvo
+
+            const checarMfa = () => {
+                supabaseClient.auth.mfa.listFactors().then(({ data, error }) => {
+                    if (!error) setTemMfa((data?.totp || []).some(f => f.status === 'verified'));
+                });
+            };
+
+            useEffect(checarMfa, []);
+
+            const ativar = async () => {
+                setAtivando(true);
+                setResultado(null);
+                checarMfa(); // reflete no card se o MFA foi ativado nesta mesma visita, sem precisar recarregar
+                const { data, error } = await invocarFunction(supabaseClient, 'ativar-modo-avancado', {});
+                setAtivando(false);
+                if (error) {
+                    setResultado({ tipo: 'erro', texto: error.message || 'Não foi possível verificar agora. Tente novamente.' });
+                    return;
+                }
+                if (data?.liberado) {
+                    setAtivo(true);
+                    setResultado({ tipo: 'sucesso', texto: 'Modo avançado ativado nesta sessão. Ainda não há nenhuma funcionalidade adicional.' });
+                } else {
+                    setAtivo(false);
+                    setResultado({ tipo: 'erro', texto: data?.motivo || 'Não autorizado.' });
+                }
+            };
+
+            return (
+                <div className="bg-white rounded-2xl border border-amber-300 shadow-sm p-5 space-y-4">
+                    <div className="flex items-center justify-between gap-4 flex-wrap">
+                        <div>
+                            <h3 className="font-bold text-stone-900 text-sm flex items-center gap-2">
+                                <i className="fa-solid fa-user-shield text-amber-600"></i> Modo Avançado (administrador)
+                            </h3>
+                            <p className="text-stone-500 text-xs mt-0.5">
+                                Visível só nesta conta. Checado a cada ativação: lista oculta de administradores + verificação em duas etapas ativa — nada fica liberado sem os dois.
+                            </p>
+                        </div>
+                        {ativo && (
+                            <span className="text-[10px] font-bold px-2 py-0.5 rounded uppercase bg-emerald-100 text-emerald-700 whitespace-nowrap">Ativo nesta sessão</span>
+                        )}
+                    </div>
+
+                    {temMfa === false && (
+                        <div className="p-3 rounded-xl text-xs font-medium bg-amber-50 text-amber-800 border border-amber-200">
+                            A verificação em duas etapas ainda não está ativa nesta conta — ative no card acima antes de tentar.
+                        </div>
+                    )}
+
+                    {resultado && (
+                        <div className={`p-3 rounded-xl text-xs font-medium ${resultado.tipo === 'sucesso' ? 'bg-emerald-50 text-emerald-700 border border-emerald-200' : 'bg-rose-50 text-rose-700 border border-rose-200'}`}>
+                            {resultado.texto}
+                        </div>
+                    )}
+
+                    <button
+                        onClick={ativar}
+                        disabled={ativando}
+                        className="px-4 py-2.5 bg-navy-900 hover:bg-navy-800 disabled:opacity-50 text-white font-semibold rounded-xl text-sm flex items-center gap-2"
+                    >
+                        {ativando ? <i className="fa-solid fa-spinner fa-spin"></i> : <i className="fa-solid fa-user-shield"></i>}
+                        {ativo ? 'Verificar novamente' : 'Ativar modo avançado'}
+                    </button>
+                </div>
+            );
+        }
+
         function ConfiguracoesView({ session, supabaseClient }) {
             const [seguro, setSeguro] = useState(null); // null=carregando | true=safeStorage (Electron) | false=localStorage (navegador)
             const [mostrarTermos, setMostrarTermos] = useState(false);
@@ -4042,6 +4121,10 @@ OAB nº ${advogadoOab}`;
                     </div>
 
                     <SegurancaMfaCard supabaseClient={supabaseClient} />
+
+                    {session?.user?.app_metadata?.role === 'admin' && (
+                        <ModoAvancadoCard session={session} supabaseClient={supabaseClient} />
+                    )}
 
                     <div className="bg-white rounded-2xl border border-stone-200 shadow-sm p-5 space-y-4">
                         <h3 className="font-bold text-stone-900 text-sm">Meu Perfil</h3>
