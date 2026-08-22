@@ -138,6 +138,76 @@
         .dark input, .dark select, .dark textarea { color-scheme: dark; }
         .dark ::-webkit-scrollbar-track { background: #1e293b; }
         .dark ::-webkit-scrollbar-thumb { background: #475569; }
+
+        /* --- Editor de Peças: legal design / visual law ---
+           Estilos do conteúdo dentro do editor Tiptap (ver EditorPecaTiptap e
+           criarNoCaixaDestaque). Escopado em .jc-editor-peca .ProseMirror pra não
+           vazar pro resto do app — o container recebe .jc-editor-peca e o Tiptap
+           anexa .ProseMirror como filho dele. */
+
+        /* Caixa de destaque: bloco colorido com rótulo fixo (ícone + texto real
+           no DOM, não CSS gerado — ver comentário em criarNoCaixaDestaque sobre o
+           motivo). Cores fixas por tipo, iguais claro/escuro só trocando o tom. */
+        .jc-editor-peca .ProseMirror .jc-callout {
+            margin: 1.25rem 0;
+            padding: 0.875rem 1.125rem;
+            border-radius: 0.75rem;
+            border: 1px solid;
+        }
+        .jc-editor-peca .ProseMirror .jc-callout-titulo {
+            font-size: 0.7rem;
+            font-weight: 700;
+            letter-spacing: 0.04em;
+            margin-bottom: 0.5rem;
+            cursor: default;
+        }
+        .jc-editor-peca .ProseMirror .jc-callout-corpo > *:last-child { margin-bottom: 0; }
+        .jc-editor-peca .ProseMirror .jc-callout-atencao { background: #fffbeb; border-color: #fde68a; }
+        .jc-editor-peca .ProseMirror .jc-callout-atencao .jc-callout-titulo { color: #b45309; }
+        .jc-editor-peca .ProseMirror .jc-callout-prazo { background: #fff1f2; border-color: #fecdd3; }
+        .jc-editor-peca .ProseMirror .jc-callout-prazo .jc-callout-titulo { color: #be123c; }
+        .jc-editor-peca .ProseMirror .jc-callout-importante { background: #eff6ff; border-color: #bfdbfe; }
+        .jc-editor-peca .ProseMirror .jc-callout-importante .jc-callout-titulo { color: #1d4ed8; }
+        .jc-editor-peca .ProseMirror .jc-callout-definicao { background: #eef2ff; border-color: #c7d2fe; }
+        .jc-editor-peca .ProseMirror .jc-callout-definicao .jc-callout-titulo { color: #4338ca; }
+        .dark .jc-editor-peca .ProseMirror .jc-callout-atencao { background: #451a03; border-color: #92400e; }
+        .dark .jc-editor-peca .ProseMirror .jc-callout-atencao .jc-callout-titulo { color: #fbbf24; }
+        .dark .jc-editor-peca .ProseMirror .jc-callout-prazo { background: #4c0519; border-color: #9f1239; }
+        .dark .jc-editor-peca .ProseMirror .jc-callout-prazo .jc-callout-titulo { color: #fb7185; }
+        .dark .jc-editor-peca .ProseMirror .jc-callout-importante { background: #172554; border-color: #1d4ed8; }
+        .dark .jc-editor-peca .ProseMirror .jc-callout-importante .jc-callout-titulo { color: #60a5fa; }
+        .dark .jc-editor-peca .ProseMirror .jc-callout-definicao { background: #1e1b4b; border-color: #4338ca; }
+        .dark .jc-editor-peca .ProseMirror .jc-callout-definicao .jc-callout-titulo { color: #818cf8; }
+
+        /* Citação: distingue trechos de jurisprudência/lei citados no corpo da
+           peça, sem depender de aspas digitadas à mão. */
+        .jc-editor-peca .ProseMirror blockquote {
+            margin: 1.25rem 0;
+            padding: 0.125rem 0 0.125rem 1rem;
+            border-left: 3px solid #a5b4fc;
+            font-style: italic;
+            color: #57534e;
+        }
+        .dark .jc-editor-peca .ProseMirror blockquote { border-left-color: #4338ca; color: #cbd5e1; }
+
+        /* Marca-texto: força texto escuro mesmo sob cores claras — a extensão do
+           Tiptap gera "color: inherit" inline, então precisa de !important pra
+           vencer (senão o texto vira ilegível no modo escuro). */
+        .jc-editor-peca .ProseMirror mark {
+            border-radius: 0.2em;
+            padding: 0.05em 0.15em;
+            color: #1c1917 !important;
+        }
+
+        /* Lista de verificação: caixa de seleção real, não marcador de lista —
+           pra requisitos/pedidos que dá pra ir riscando durante a revisão. */
+        .jc-editor-peca .ProseMirror ul[data-type="taskList"] { list-style: none; padding-left: 0; }
+        .jc-editor-peca .ProseMirror ul[data-type="taskList"] li { display: flex; align-items: flex-start; gap: 0.5rem; }
+        .jc-editor-peca .ProseMirror ul[data-type="taskList"] li > label { margin-top: 0.2rem; }
+        .jc-editor-peca .ProseMirror ul[data-type="taskList"] input[type="checkbox"] { accent-color: #f59e0b; width: 1rem; height: 1rem; }
+        .jc-editor-peca .ProseMirror ul[data-type="taskList"] li > div { flex: 1; }
+        .jc-editor-peca .ProseMirror ul[data-type="taskList"] li[data-checked="true"] > div { color: #a8a29e; text-decoration: line-through; }
+        .dark .jc-editor-peca .ProseMirror ul[data-type="taskList"] li[data-checked="true"] > div { color: #64748b; }
     </style>
 </head>
 <body class="bg-stone-50 text-stone-800 antialiased selection:bg-amber-500 selection:text-white dark:bg-navy-950 dark:text-stone-200">
@@ -377,10 +447,115 @@
             return _scriptsCarregados[src];
         }
 
+        // --- Editor de texto rico (Tiptap) pra Criação de Peças, sob demanda ---
+        // Tiptap é distribuído como pacote npm puro (ESM) — não tem build UMD pra
+        // um <script> comum. Em vez de adicionar um bundler ao projeto inteiro só
+        // por causa disso, carregamos via import() dinâmico direto do esm.sh, que
+        // resolve as dependências e devolve um módulo ES pronto pro navegador. O
+        // @tiptap/core é framework-agnóstico (não usa React por baixo — anexa
+        // direto num elemento DOM, como o ProseMirror que o move), então não tem
+        // risco de carregar uma segunda cópia do React em paralelo. Testado ao
+        // vivo antes de integrar. Cacheia por especificador, mesma lógica do
+        // helper de scripts acima.
+        const TIPTAP_VERSAO = '3.20.0';
+        const _modulosCarregados = {};
+        function importarModulo(especificador) {
+            if (!_modulosCarregados[especificador]) {
+                _modulosCarregados[especificador] = import(`https://esm.sh/${especificador}`);
+            }
+            return _modulosCarregados[especificador];
+        }
+
+        // --- Caixas de destaque (legal design / visual law) ---
+        // Bloco visual colorido com ícone fixo, pra separar prazo/atenção/definição
+        // do corpo corrido do texto — quem lê a peça bate o olho e já sabe a
+        // natureza da informação sem ler o parágrafo inteiro. Cores e rótulos são
+        // fixos (não é uma paleta livre) de propósito: mantém as peças
+        // reconhecíveis entre usuários diferentes, igual um padrão de sinalização.
+        // Usada tanto pelo node do Tiptap (rótulo dentro da caixa) quanto pelos
+        // comandos da barra/menu (ícone do botão que insere) — uma fonte só.
+        const TIPOS_CAIXA_DESTAQUE = {
+            atencao: { rotulo: '⚠️ ATENÇÃO', icone: 'fa-triangle-exclamation', titulo: 'Caixa: Atenção' },
+            prazo: { rotulo: '⏰ PRAZO', icone: 'fa-clock', titulo: 'Caixa: Prazo' },
+            importante: { rotulo: '📌 IMPORTANTE', icone: 'fa-thumbtack', titulo: 'Caixa: Importante' },
+            definicao: { rotulo: '📖 DEFINIÇÃO', icone: 'fa-book', titulo: 'Caixa: Definição' },
+        };
+        // Node custom do Tiptap pra caixa de destaque. O rótulo (ícone + texto) é
+        // renderizado como um <div> real dentro do HTML, não via CSS ::before —
+        // de propósito, pra sobreviver fora do editor: cópia de texto puro
+        // (onChangeTexto/getText), exportação pra Word e qualquer reabertura do
+        // HTML salvo continuam mostrando "⚠️ ATENÇÃO" mesmo sem o CSS do app.
+        // O conteúdo editável fica isolado em .jc-callout-corpo (contentElement no
+        // parseHTML) pra esse rótulo nunca ser tratado como parte do texto editável.
+        function criarNoCaixaDestaque(Node, mergeAttributes) {
+            return Node.create({
+                name: 'caixaDestaque',
+                group: 'block',
+                content: 'block+',
+                defining: true,
+                addAttributes() {
+                    return {
+                        tipo: {
+                            default: 'importante',
+                            parseHTML: el => el.getAttribute('data-tipo') || 'importante',
+                            renderHTML: attrs => ({ 'data-tipo': attrs.tipo }),
+                        },
+                    };
+                },
+                parseHTML() {
+                    return [{ tag: 'div[data-caixa-destaque]', contentElement: 'div.jc-callout-corpo' }];
+                },
+                renderHTML({ HTMLAttributes, node }) {
+                    const info = TIPOS_CAIXA_DESTAQUE[node.attrs.tipo] || TIPOS_CAIXA_DESTAQUE.importante;
+                    return ['div', mergeAttributes(HTMLAttributes, {
+                        'data-caixa-destaque': '',
+                        class: `jc-callout jc-callout-${node.attrs.tipo}`,
+                    }),
+                        ['div', { class: 'jc-callout-titulo', contenteditable: 'false' }, info.rotulo],
+                        ['div', { class: 'jc-callout-corpo' }, 0],
+                    ];
+                },
+            });
+        }
+
+        async function carregarTiptap() {
+            const [core, starterKit, underline, tableMod, textAlign, highlightMod, taskListMod, taskItemMod] = await Promise.all([
+                importarModulo(`@tiptap/core@${TIPTAP_VERSAO}`),
+                importarModulo(`@tiptap/starter-kit@${TIPTAP_VERSAO}`),
+                importarModulo(`@tiptap/extension-underline@${TIPTAP_VERSAO}`),
+                // TableKit já empacota Table+TableRow+TableCell+TableHeader juntos —
+                // testado ao vivo (o pacote não tem export default, só nomeado).
+                importarModulo(`@tiptap/extension-table@${TIPTAP_VERSAO}`),
+                importarModulo(`@tiptap/extension-text-align@${TIPTAP_VERSAO}`),
+                // Marca-texto multicor (marcador de texto de verdade, não só negrito).
+                importarModulo(`@tiptap/extension-highlight@${TIPTAP_VERSAO}`),
+                // Lista de verificação — requisitos/pedidos que dá pra ir riscando.
+                importarModulo(`@tiptap/extension-task-list@${TIPTAP_VERSAO}`),
+                importarModulo(`@tiptap/extension-task-item@${TIPTAP_VERSAO}`),
+            ]);
+            return {
+                Editor: core.Editor,
+                extensoes: [
+                    starterKit.default,
+                    underline.default,
+                    tableMod.TableKit.configure({ table: { resizable: false } }),
+                    textAlign.default.configure({ types: ['paragraph', 'heading'] }),
+                    highlightMod.default.configure({ multicolor: true }),
+                    taskListMod.default,
+                    taskItemMod.default.configure({ nested: true }),
+                    criarNoCaixaDestaque(core.Node, core.mergeAttributes),
+                ],
+            };
+        }
+
         // --- Exportar texto como .docx real (Word) ---
         // html-docx-js roda 100% no navegador (gratuita, MIT) e converte um HTML
         // completo num Blob .docx que o Word abre nativamente, sem servidor nenhum.
-        async function baixarComoWord(texto, nomeArquivo) {
+        // `conteudo` normalmente é texto puro (uma linha por parágrafo) — passa
+        // { isHtml: true } quando já se tem HTML de verdade (ex: do editor Tiptap
+        // da Criação de Peças), pra preservar negrito/tabela/título no .docx em
+        // vez de re-achatar tudo em parágrafos simples.
+        async function baixarComoWord(conteudo, nomeArquivo, opts = {}) {
             if (!window.htmlDocx) {
                 try {
                     await carregarScriptSobDemanda('https://cdn.jsdelivr.net/npm/html-docx-js/dist/html-docx.js');
@@ -393,13 +568,23 @@
                 alert('Exportação para Word indisponível no momento (biblioteca não carregou). Tente copiar o texto manualmente.');
                 return;
             }
-            const linhasHtml = String(texto)
-                .split('\n')
-                .map(linha => `<p>${linha.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;') || '&nbsp;'}</p>`)
-                .join('\n');
+            const linhasHtml = opts.isHtml
+                ? conteudo
+                : String(conteudo)
+                    .split('\n')
+                    .map(linha => `<p>${linha.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;') || '&nbsp;'}</p>`)
+                    .join('\n');
             const htmlCompleto = `<!DOCTYPE html><html><head><meta charset="utf-8"><style>
                 body { font-family: 'Times New Roman', serif; font-size: 12pt; line-height: 1.5; }
                 p { margin: 0 0 8pt 0; }
+                h3 { font-weight: bold; margin: 16pt 0 8pt 0; }
+                table { border-collapse: collapse; width: 100%; }
+                td, th { border: 1px solid #999; padding: 4pt 6pt; }
+                mark { background: #fef08a; }
+                blockquote { margin: 8pt 0; padding-left: 10pt; border-left: 2pt solid #999; font-style: italic; }
+                div[data-caixa-destaque] { margin: 10pt 0; padding: 8pt 10pt; border: 1pt solid #999; }
+                .jc-callout-titulo { font-weight: bold; font-size: 9pt; margin-bottom: 4pt; }
+                ul[data-type="taskList"] { list-style: none; padding-left: 0; }
             </style></head><body>${linhasHtml}</body></html>`;
             const blob = window.htmlDocx.asBlob(htmlCompleto);
             const url = URL.createObjectURL(blob);
@@ -3659,23 +3844,23 @@ OAB nº ${advogadoOab}`;
         // linha), sem precisar chamar nenhuma function.
         function UsoIAGratuitaBanner({ supabaseClient, session }) {
             const [estado, setEstado] = useState(null);
+            const [mostrarConfigurarIA, setMostrarConfigurarIA] = useState(false);
 
-            useEffect(() => {
-                let cancelado = false;
-                (async () => {
-                    const { apiKey } = await resolverProvedorIA();
-                    if (apiKey) {
-                        if (!cancelado) setEstado({ temChavePropria: true });
-                        return;
-                    }
-                    const mes = new Date().toISOString().slice(0, 7);
-                    const { data } = await supabaseClient
-                        .from('uso_ia_gratuita').select('contagem')
-                        .eq('user_id', session.user.id).eq('mes', mes).maybeSingle();
-                    if (!cancelado) setEstado({ temChavePropria: false, usadas: data?.contagem ?? 0 });
-                })();
-                return () => { cancelado = true; };
-            }, [session.user.id]);
+            const recarregar = async () => {
+                setEstado(null);
+                const { apiKey } = await resolverProvedorIA();
+                if (apiKey) {
+                    setEstado({ temChavePropria: true });
+                    return;
+                }
+                const mes = new Date().toISOString().slice(0, 7);
+                const { data } = await supabaseClient
+                    .from('uso_ia_gratuita').select('contagem')
+                    .eq('user_id', session.user.id).eq('mes', mes).maybeSingle();
+                setEstado({ temChavePropria: false, usadas: data?.contagem ?? 0 });
+            };
+
+            useEffect(() => { recarregar(); }, [session.user.id]);
 
             if (!estado) return null;
             if (estado.temChavePropria) {
@@ -3687,9 +3872,19 @@ OAB nº ${advogadoOab}`;
             }
             const restantes = Math.max(0, 10 - estado.usadas);
             return (
-                <div className={`p-3 rounded-xl text-xs border flex items-center gap-2 ${restantes === 0 ? 'bg-rose-50 border-rose-200 text-rose-700' : 'bg-amber-50 border-amber-200 text-amber-800'}`}>
+                <div className={`p-3 rounded-xl text-xs border flex items-center gap-2 flex-wrap ${restantes === 0 ? 'bg-rose-50 border-rose-200 text-rose-700' : 'bg-amber-50 border-amber-200 text-amber-800'}`}>
                     <i className="fa-solid fa-gift"></i>
-                    IA gratuita: {estado.usadas} de 10 gerações usadas este mês{restantes === 0 ? ' — conecte sua chave em Configurações para continuar' : ''}.
+                    <span className="flex-1">IA gratuita: {estado.usadas} de 10 gerações usadas este mês{restantes === 0 ? ' — conecte sua chave pra continuar' : '.'}</span>
+                    <button
+                        type="button"
+                        onClick={() => setMostrarConfigurarIA(true)}
+                        className={`px-2.5 py-1 rounded-lg text-[11px] font-bold whitespace-nowrap ${restantes === 0 ? 'bg-rose-600 hover:bg-rose-700 text-white' : 'bg-amber-500 hover:bg-amber-600 text-stone-950'}`}
+                    >
+                        <i className="fa-solid fa-key mr-1"></i> Adicionar minha IA
+                    </button>
+                    {mostrarConfigurarIA && (
+                        <ConfigurarIAModal onClose={() => { setMostrarConfigurarIA(false); recarregar(); }} />
+                    )}
                 </div>
             );
         }
@@ -3715,16 +3910,21 @@ OAB nº ${advogadoOab}`;
             return t === t.toUpperCase() && t !== t.toLowerCase();
         }
 
+        // Gera o HTML inicial pro Tiptap (não pra exibir direto): título de seção
+        // vira <h3> de verdade (o Tiptap reconhece e preserva isso como um nó de
+        // título de verdade, diferente de um <p> só estilizado, que ele descartaria
+        // ao interpretar o HTML) — o visual em negrito vem do CSS aplicado no
+        // container do editor (ver EditorPecaTiptap), não de classes soltas aqui.
         function construirHtmlDocumento(texto) {
             const blocos = (texto || '').split(/\n{2,}/);
             return blocos.map(bloco => {
                 const linhas = bloco.split('\n').map(l => l.trim()).filter(Boolean);
                 if (linhas.length === 0) return '';
                 if (linhas.length === 1 && ehTituloDeSecao(linhas[0])) {
-                    return `<p class="font-bold text-stone-900 mt-6 mb-2 first:mt-0">${escaparHtml(linhas[0])}</p>`;
+                    return `<h3>${escaparHtml(linhas[0])}</h3>`;
                 }
                 const html = linhas.map(escaparHtml).join('<br/>');
-                return `<p class="mb-4 leading-relaxed text-stone-800 text-justify">${html}</p>`;
+                return `<p>${html}</p>`;
             }).filter(Boolean).join('');
         }
 
@@ -3732,29 +3932,249 @@ OAB nº ${advogadoOab}`;
         // se está editando (evita o clássico bug de cursor pulando quando o React
         // re-renderiza um contentEditable a cada tecla) — a sincronização de volta
         // pro estado (texto puro, via innerText) só acontece ao sair do campo.
-        function PaginaDocumentoEditavel({ texto, onChangeTexto }) {
+        // Botão simples da barra de ferramentas — reflete se o formato já está
+        // ativo no cursor atual (negrito com o cursor dentro de um trecho em
+        // negrito, por exemplo), no mesmo estilo visual do resto do app.
+        function BotaoFormatoEditor({ ativo, onClick, titulo, children }) {
+            return (
+                <button
+                    type="button"
+                    title={titulo}
+                    onMouseDown={(e) => e.preventDefault()} // não tira o foco do editor ao clicar
+                    onClick={onClick}
+                    className={`w-8 h-8 flex items-center justify-center rounded-lg text-sm transition ${ativo ? 'bg-amber-500 text-stone-950' : 'text-stone-600 hover:bg-stone-100'}`}
+                >
+                    {children}
+                </button>
+            );
+        }
+
+        // Lista única de comandos de formatação — usada tanto na barra de
+        // ferramentas (ícones) quanto no menu de clique direito (ícone + rótulo),
+        // pra não duplicar a mesma lista de ações em dois lugares.
+        function criarComandosFormatacao(editor) {
+            const grupoTexto = [
+                { titulo: 'Negrito', icone: 'fa-bold', ativo: editor.isActive('bold'), acao: () => editor.chain().focus().toggleBold().run() },
+                { titulo: 'Itálico', icone: 'fa-italic', ativo: editor.isActive('italic'), acao: () => editor.chain().focus().toggleItalic().run() },
+                { titulo: 'Sublinhado', icone: 'fa-underline', ativo: editor.isActive('underline'), acao: () => editor.chain().focus().toggleUnderline().run() },
+            ];
+            // Marca-texto: mesmo princípio do marcador físico em papel — aponta
+            // trechos relevantes sem alterar o conteúdo. Cores fixas (não é um
+            // seletor livre) de propósito, pelo mesmo motivo das caixas de
+            // destaque abaixo: consistência visual entre peças/usuários. Cada
+            // botão mostra a própria cor (não um ícone), pra já ser o preview.
+            const CORES_MARCA_TEXTO = [
+                { titulo: 'Marcar em amarelo', cor: '#fde68a' },
+                { titulo: 'Marcar em verde', cor: '#bbf7d0' },
+                { titulo: 'Marcar em azul', cor: '#bfdbfe' },
+                { titulo: 'Marcar em rosa', cor: '#fbcfe8' },
+            ];
+            const grupoMarcaTexto = [
+                ...CORES_MARCA_TEXTO.map(c => ({
+                    titulo: c.titulo,
+                    cor: c.cor,
+                    ativo: editor.isActive('highlight', { color: c.cor }),
+                    acao: () => editor.chain().focus().toggleHighlight({ color: c.cor }).run(),
+                })),
+                { titulo: 'Remover marca-texto', icone: 'fa-eraser', acao: () => editor.chain().focus().unsetHighlight().run() },
+            ];
+            const grupoEstrutura = [
+                { titulo: 'Título de seção', icone: 'fa-heading', ativo: editor.isActive('heading', { level: 3 }), acao: () => editor.chain().focus().toggleHeading({ level: 3 }).run() },
+                { titulo: 'Lista com marcadores', icone: 'fa-list-ul', ativo: editor.isActive('bulletList'), acao: () => editor.chain().focus().toggleBulletList().run() },
+                { titulo: 'Lista numerada', icone: 'fa-list-ol', ativo: editor.isActive('orderedList'), acao: () => editor.chain().focus().toggleOrderedList().run() },
+                { titulo: 'Lista de verificação', icone: 'fa-list-check', ativo: editor.isActive('taskList'), acao: () => editor.chain().focus().toggleTaskList().run() },
+                { titulo: 'Citação', icone: 'fa-quote-left', ativo: editor.isActive('blockquote'), acao: () => editor.chain().focus().toggleBlockquote().run() },
+            ];
+            // Caixas de destaque: o núcleo do "legal design" no editor — ver
+            // TIPOS_CAIXA_DESTAQUE e criarNoCaixaDestaque, lá em cima. Cada botão
+            // insere a caixa já com o tipo certo (sem seletor à parte); pra trocar
+            // o tipo depois, apaga e insere de novo.
+            const grupoDestaque = Object.entries(TIPOS_CAIXA_DESTAQUE).map(([tipo, info]) => ({
+                titulo: info.titulo,
+                icone: info.icone,
+                acao: () => editor.chain().focus().insertContent({
+                    type: 'caixaDestaque',
+                    attrs: { tipo },
+                    content: [{ type: 'paragraph' }],
+                }).run(),
+            }));
+            const grupoAlinhamento = [
+                { titulo: 'Alinhar à esquerda', icone: 'fa-align-left', ativo: editor.isActive({ textAlign: 'left' }), acao: () => editor.chain().focus().setTextAlign('left').run() },
+                { titulo: 'Centralizar', icone: 'fa-align-center', ativo: editor.isActive({ textAlign: 'center' }), acao: () => editor.chain().focus().setTextAlign('center').run() },
+                { titulo: 'Alinhar à direita', icone: 'fa-align-right', ativo: editor.isActive({ textAlign: 'right' }), acao: () => editor.chain().focus().setTextAlign('right').run() },
+                { titulo: 'Justificar', icone: 'fa-align-justify', ativo: editor.isActive({ textAlign: 'justify' }), acao: () => editor.chain().focus().setTextAlign('justify').run() },
+            ];
+            const grupoInserir = [
+                { titulo: 'Inserir tabela 3x3', icone: 'fa-table', acao: () => editor.chain().focus().insertTable({ rows: 3, cols: 3, withHeaderRow: true }).run() },
+            ];
+            const grupoHistorico = [
+                { titulo: 'Desfazer', icone: 'fa-rotate-left', acao: () => editor.chain().focus().undo().run() },
+                { titulo: 'Refazer', icone: 'fa-rotate-right', acao: () => editor.chain().focus().redo().run() },
+            ];
+            return [grupoTexto, grupoMarcaTexto, grupoEstrutura, grupoDestaque, grupoAlinhamento, grupoInserir, grupoHistorico];
+        }
+
+        function BarraFerramentasEditor({ editor }) {
+            // Tiptap não é reativo por si só — escuta as transações do editor (toda
+            // digitação, todo clique) e força um novo render, só pra manter os
+            // botões (negrito ativo, etc.) e os estados de desfazer/refazer atualizados.
+            const [, forcarRender] = useState(0);
+            useEffect(() => {
+                const atualizar = () => forcarRender(n => n + 1);
+                editor.on('transaction', atualizar);
+                return () => editor.off('transaction', atualizar);
+            }, [editor]);
+
+            const grupos = criarComandosFormatacao(editor);
+            const separador = <div className="w-px h-5 bg-stone-200 mx-1"></div>;
+
+            return (
+                <div className="flex items-center gap-0.5 flex-wrap p-1.5 border-b border-stone-200 bg-stone-50 rounded-t-lg sticky top-0 z-10">
+                    {grupos.map((grupo, i) => (
+                        <React.Fragment key={i}>
+                            {i > 0 && separador}
+                            {grupo.map(cmd => (
+                                <BotaoFormatoEditor key={cmd.titulo} titulo={cmd.titulo} ativo={cmd.ativo} onClick={cmd.acao}>
+                                    {cmd.cor
+                                        ? <span className="w-3.5 h-3.5 rounded-full ring-1 ring-inset ring-black/10" style={{ background: cmd.cor }}></span>
+                                        : <i className={`fa-solid ${cmd.icone}`}></i>}
+                                </BotaoFormatoEditor>
+                            ))}
+                        </React.Fragment>
+                    ))}
+                </div>
+            );
+        }
+
+        // Menu flutuante de clique direito: mesmos comandos da barra, num painel
+        // vertical posicionado onde o clique aconteceu — fecha ao escolher uma
+        // opção, clicar fora, rolar a tela ou apertar Esc.
+        function MenuContextualEditor({ editor, x, y, onClose }) {
             const ref = useRef(null);
-            const editandoRef = useRef(false);
 
             useEffect(() => {
-                if (ref.current && !editandoRef.current) {
-                    ref.current.innerHTML = construirHtmlDocumento(texto);
-                }
-            }, [texto]);
+                const aoClicarFora = (e) => { if (ref.current && !ref.current.contains(e.target)) onClose(); };
+                const aoApertarTecla = (e) => { if (e.key === 'Escape') onClose(); };
+                document.addEventListener('mousedown', aoClicarFora);
+                document.addEventListener('keydown', aoApertarTecla);
+                window.addEventListener('scroll', onClose, true);
+                return () => {
+                    document.removeEventListener('mousedown', aoClicarFora);
+                    document.removeEventListener('keydown', aoApertarTecla);
+                    window.removeEventListener('scroll', onClose, true);
+                };
+            }, [onClose]);
+
+            // Evita o menu nascer pra fora da tela quando o clique é perto da borda.
+            // A lista de comandos cresceu (marca-texto, caixas de destaque, etc.),
+            // então o menu agora rola (max-h + overflow) em vez de estourar a tela.
+            const alturaMaxima = Math.min(420, window.innerHeight - 24);
+            const estilo = {
+                left: Math.min(x, window.innerWidth - 200),
+                top: Math.min(y, window.innerHeight - alturaMaxima - 8),
+            };
+
+            const grupos = criarComandosFormatacao(editor);
 
             return (
                 <div
                     ref={ref}
-                    contentEditable
-                    suppressContentEditableWarning
-                    onFocus={() => { editandoRef.current = true; }}
-                    onBlur={(e) => {
-                        editandoRef.current = false;
-                        const novo = e.currentTarget.innerText.replace(/\n{3,}/g, '\n\n');
-                        if (novo.trim() && novo !== texto) onChangeTexto(novo);
-                    }}
-                    className="bg-white rounded-lg shadow-[0_1px_4px_rgba(15,23,42,0.08)] border border-stone-200 p-8 md:p-12 max-w-3xl mx-auto min-h-[500px] focus:outline-none focus:ring-2 focus:ring-amber-400"
-                />
+                    style={{ ...estilo, maxHeight: alturaMaxima }}
+                    className="fixed z-50 w-48 bg-white rounded-xl shadow-2xl border border-stone-200 py-1.5 overflow-y-auto"
+                >
+                    {grupos.map((grupo, i) => (
+                        <React.Fragment key={i}>
+                            {i > 0 && <div className="h-px bg-stone-100 my-1"></div>}
+                            {grupo.map(cmd => (
+                                <button
+                                    key={cmd.titulo}
+                                    type="button"
+                                    onMouseDown={(e) => e.preventDefault()}
+                                    onClick={() => { cmd.acao(); onClose(); }}
+                                    className={`w-full flex items-center gap-2.5 px-3 py-1.5 text-xs text-left transition ${cmd.ativo ? 'text-amber-700 font-semibold bg-amber-50' : 'text-stone-700 hover:bg-stone-50'}`}
+                                >
+                                    {cmd.cor
+                                        ? <span className="w-3.5 h-3.5 rounded-full ring-1 ring-inset ring-black/10 flex-shrink-0" style={{ background: cmd.cor }}></span>
+                                        : <i className={`fa-solid ${cmd.icone} w-4 text-center`}></i>}
+                                    {cmd.titulo}
+                                </button>
+                            ))}
+                        </React.Fragment>
+                    ))}
+                </div>
+            );
+        }
+
+        // Editor de verdade (Tiptap): substitui o antigo contentEditable cru por
+        // negrito/itálico/sublinhado/títulos/listas/tabela de verdade — mais
+        // marca-texto, citação, lista de verificação e caixas de destaque
+        // (legal design / visual law: ver TIPOS_CAIXA_DESTAQUE) — mantendo o
+        // visual de "página" branca. O conteúdo inicial (htmlInicial) é montado uma
+        // única vez a partir do texto puro que a IA devolveu (mesma heurística de
+        // título em maiúsculas de sempre) — a partir daí, o Tiptap é quem manda:
+        // toda edição sai como HTML de verdade (onChangeHtml) e como texto puro
+        // (onChangeTexto, só pra manter "Copiar" simples).
+        function EditorPecaTiptap({ htmlInicial, onChangeHtml, onChangeTexto, largo }) {
+            const [editor, setEditor] = useState(null);
+            const [erroCarregamento, setErroCarregamento] = useState(null);
+            const [menuContexto, setMenuContexto] = useState(null); // { x, y } | null
+            const containerRef = useRef(null);
+            const montadoRef = useRef(false); // evita marcar como "editado" no set inicial de conteúdo
+
+            useEffect(() => {
+                let cancelado = false;
+                let instancia = null;
+                carregarTiptap().then(({ Editor, extensoes }) => {
+                    if (cancelado || !containerRef.current) return;
+                    instancia = new Editor({
+                        element: containerRef.current,
+                        extensions: extensoes,
+                        content: htmlInicial,
+                        onUpdate: ({ editor: ed }) => {
+                            if (!montadoRef.current) { montadoRef.current = true; return; }
+                            onChangeHtml(ed.getHTML());
+                            onChangeTexto(ed.getText());
+                        },
+                    });
+                    setEditor(instancia);
+                }).catch(err => {
+                    console.error('Falha ao carregar o editor:', err);
+                    if (!cancelado) setErroCarregamento('Não foi possível carregar o editor de texto agora. Recarregue a página e tente de novo.');
+                });
+                return () => {
+                    cancelado = true;
+                    if (instancia) instancia.destroy();
+                };
+                // eslint: intencional — o editor é montado uma única vez; trocar de
+                // peça gerada remonta o componente inteiro (key na chamada), não
+                // atualiza o conteúdo por aqui.
+                // eslint-disable-next-line react-hooks/exhaustive-deps
+            }, []);
+
+            if (erroCarregamento) {
+                return <div className="max-w-3xl mx-auto p-4 bg-rose-50 border border-rose-200 rounded-xl text-xs text-rose-700">{erroCarregamento}</div>;
+            }
+
+            return (
+                <div className={`${largo ? 'max-w-5xl' : 'max-w-3xl'} mx-auto bg-white rounded-lg shadow-[0_1px_4px_rgba(15,23,42,0.08)] border border-stone-200 overflow-hidden`}>
+                    {editor ? <BarraFerramentasEditor editor={editor} /> : (
+                        <div className="p-1.5 border-b border-stone-200 bg-stone-50 text-[11px] text-stone-400 flex items-center gap-2">
+                            <i className="fa-solid fa-spinner fa-spin"></i> Carregando editor...
+                        </div>
+                    )}
+                    <div
+                        ref={containerRef}
+                        onContextMenu={(e) => {
+                            if (!editor) return;
+                            e.preventDefault();
+                            setMenuContexto({ x: e.clientX, y: e.clientY });
+                        }}
+                        className="p-8 md:p-12 min-h-[500px] jc-editor-peca [&_.ProseMirror]:outline-none [&_.ProseMirror_h3]:font-bold [&_.ProseMirror_h3]:text-stone-900 [&_.ProseMirror_h3]:mt-6 [&_.ProseMirror_h3]:mb-2 [&_.ProseMirror_h3]:text-base [&_.ProseMirror_p]:mb-4 [&_.ProseMirror_p]:leading-relaxed [&_.ProseMirror_table]:border-collapse [&_.ProseMirror_table]:w-full [&_.ProseMirror_td]:border [&_.ProseMirror_td]:border-stone-300 [&_.ProseMirror_td]:p-2 [&_.ProseMirror_th]:border [&_.ProseMirror_th]:border-stone-300 [&_.ProseMirror_th]:p-2 [&_.ProseMirror_th]:bg-stone-50"
+                    />
+                    {menuContexto && editor && (
+                        <MenuContextualEditor editor={editor} x={menuContexto.x} y={menuContexto.y} onClose={() => setMenuContexto(null)} />
+                    )}
+                </div>
             );
         }
 
@@ -3765,22 +4185,28 @@ OAB nº ${advogadoOab}`;
         // Jurisprudência fica de fora daqui de propósito — vai num painel à
         // esquerda (junto dos Parâmetros), não embaixo da página do documento. Ver
         // PainelJurisprudenciaLateral em CriacaoPecasIAView.
-        function PecaGeradaViewer({ texto, onChangeTexto, editado }) {
+        function PecaGeradaViewer({ texto, onChangeHtml, onChangeTexto, editado, largo }) {
             if (!texto) return null;
             const linhaAviso = texto.split('\n').find(l => l.includes('MINUTA GERADA POR IA') || l.includes('SUGESTÃO GERADA POR IA'));
             const textoSemAviso = linhaAviso ? texto.replace(linhaAviso, '').replace(/\n{3,}/g, '\n\n').trim() : texto;
+            const larguraAviso = largo ? 'max-w-5xl' : 'max-w-3xl';
 
             return (
                 <div className="space-y-4">
                     {linhaAviso && (
-                        <div className="max-w-3xl mx-auto p-3 bg-amber-50 border border-amber-200 rounded-xl text-xs text-amber-900 flex items-start gap-2">
+                        <div className={`${larguraAviso} mx-auto p-3 bg-amber-50 border border-amber-200 rounded-xl text-xs text-amber-900 flex items-start gap-2`}>
                             <i className="fa-solid fa-triangle-exclamation mt-0.5"></i>
                             <span>{linhaAviso.replace(/^⚠️\s*/, '')}</span>
                         </div>
                     )}
-                    <PaginaDocumentoEditavel texto={textoSemAviso} onChangeTexto={(novoCorpo) => onChangeTexto(linhaAviso ? `${novoCorpo}\n\n${linhaAviso}` : novoCorpo)} />
-                    <p className="max-w-3xl mx-auto text-[11px] text-stone-400 flex items-center gap-1.5">
-                        <i className="fa-solid fa-pen"></i> Clique no texto acima para editar diretamente.
+                    <EditorPecaTiptap
+                        htmlInicial={construirHtmlDocumento(textoSemAviso)}
+                        onChangeHtml={onChangeHtml}
+                        onChangeTexto={onChangeTexto}
+                        largo={largo}
+                    />
+                    <p className={`${larguraAviso} mx-auto text-[11px] text-stone-400 flex items-center gap-1.5`}>
+                        <i className="fa-solid fa-pen"></i> Use a barra acima ou clique com o botão direito pra formatar — negrito, títulos, listas, tabela, marca-texto, citação e caixas de destaque (atenção, prazo, importante, definição).
                         {editado && <span className="text-emerald-600 font-semibold">Editado manualmente.</span>}
                     </p>
                 </div>
@@ -3863,6 +4289,19 @@ OAB nº ${advogadoOab}`;
             const [resultado, setResultado] = useState(null);
             const [jurisprudencia, setJurisprudencia] = useState(null);
             const [editado, setEditado] = useState(false);
+            // Conteúdo "atual" da peça pra Word/Copiar — começa igual ao que a IA
+            // devolveu, mas passa a refletir as edições feitas no editor (Tiptap)
+            // assim que o usuário mexe em alguma coisa. htmlAtual é o que vira o
+            // .docx (preserva negrito/tabela); textoAtual é só pra "Copiar".
+            const [htmlAtual, setHtmlAtual] = useState('');
+            const [textoAtual, setTextoAtual] = useState('');
+            // Muda a cada geração — força o editor a remontar do zero com o
+            // conteúdo novo, em vez de continuar mostrando a peça anterior.
+            const [geracaoId, setGeracaoId] = useState(0);
+            // Painel "Minuta Gerada" expandido cobrindo a tela (menos a barra
+            // lateral, que continua visível/navegável) — só um espaço maior pra
+            // trabalhar no texto, não é uma tela de verdade separada.
+            const [expandido, setExpandido] = useState(false);
 
             const gerar = async () => {
                 if (!supabaseClient) {
@@ -3922,6 +4361,9 @@ OAB nº ${advogadoOab}`;
                     }
 
                     setResultado(data);
+                    setHtmlAtual('');
+                    setTextoAtual(data.texto || '');
+                    setGeracaoId(n => n + 1);
                     setAtualizacoesUso(n => n + 1);
                 } catch (err) {
                     console.error('Erro ao gerar peça com IA:', err);
@@ -3932,15 +4374,18 @@ OAB nº ${advogadoOab}`;
                 }
             };
 
-            const alterarTexto = (novoTexto) => {
-                setResultado(r => ({ ...r, texto: novoTexto }));
+            const alterarHtml = (novoHtml) => {
+                setHtmlAtual(novoHtml);
                 setEditado(true);
+            };
+            const alterarTexto = (novoTexto) => {
+                setTextoAtual(novoTexto);
             };
 
             const copiarTexto = () => {
-                if (!resultado?.texto) return;
+                if (!textoAtual) return;
                 const textArea = document.createElement('textarea');
-                textArea.value = resultado.texto;
+                textArea.value = textoAtual;
                 document.body.appendChild(textArea);
                 textArea.select();
                 document.execCommand('copy');
@@ -4017,19 +4462,31 @@ OAB nº ${advogadoOab}`;
                         <PainelJurisprudenciaLateral jurisprudencia={jurisprudencia} buscando={etapa === 'jurisprudencia'} />
                         </div>
 
-                        <div className="lg:col-span-2 bg-stone-50 rounded-2xl border border-stone-200 shadow-sm flex flex-col">
-                            <div className="p-4 border-b border-stone-200 flex items-center justify-between bg-white rounded-t-2xl">
+                        <div className={expandido
+                            ? 'fixed inset-y-0 right-0 left-0 md:left-64 z-40 bg-stone-50 flex flex-col'
+                            : 'lg:col-span-2 bg-stone-50 rounded-2xl border border-stone-200 shadow-sm flex flex-col'
+                        }>
+                            <div className="p-4 border-b border-stone-200 flex items-center justify-between bg-white rounded-t-2xl flex-shrink-0">
                                 <h3 className="font-bold text-stone-900 text-sm">Minuta Gerada</h3>
-                                {resultado && (
-                                    <div className="flex gap-2">
-                                        <button onClick={() => baixarComoWord(resultado.texto, `minuta-${tipoPeca}`)} className="px-3 py-1.5 bg-navy-700 hover:bg-navy-800 text-white text-xs font-semibold rounded-lg">
-                                            <i className="fa-solid fa-file-word mr-1"></i> Word
-                                        </button>
-                                        <button onClick={copiarTexto} className="px-3 py-1.5 bg-stone-100 hover:bg-stone-200 text-stone-700 text-xs font-semibold rounded-lg">
-                                            <i className="fa-solid fa-copy mr-1"></i> Copiar
-                                        </button>
-                                    </div>
-                                )}
+                                <div className="flex gap-2">
+                                    {resultado && (
+                                        <>
+                                            <button onClick={() => baixarComoWord(htmlAtual || resultado.texto, `minuta-${tipoPeca}`, { isHtml: !!htmlAtual })} className="px-3 py-1.5 bg-navy-700 hover:bg-navy-800 text-white text-xs font-semibold rounded-lg">
+                                                <i className="fa-solid fa-file-word mr-1"></i> Word
+                                            </button>
+                                            <button onClick={copiarTexto} className="px-3 py-1.5 bg-stone-100 hover:bg-stone-200 text-stone-700 text-xs font-semibold rounded-lg">
+                                                <i className="fa-solid fa-copy mr-1"></i> Copiar
+                                            </button>
+                                        </>
+                                    )}
+                                    <button
+                                        onClick={() => setExpandido(e => !e)}
+                                        title={expandido ? 'Recolher' : 'Expandir'}
+                                        className="px-3 py-1.5 bg-stone-100 hover:bg-stone-200 text-stone-700 text-xs font-semibold rounded-lg"
+                                    >
+                                        <i className={`fa-solid ${expandido ? 'fa-compress' : 'fa-expand'}`}></i>
+                                    </button>
+                                </div>
                             </div>
                             <div className="p-6 flex-1 overflow-y-auto" style={{ minHeight: '400px' }}>
                                 {loading && <PainelCarregandoPeca etapa={etapa} />}
@@ -4039,7 +4496,7 @@ OAB nº ${advogadoOab}`;
                                     </div>
                                 )}
                                 {!loading && resultado && (
-                                    <PecaGeradaViewer texto={resultado.texto} onChangeTexto={alterarTexto} editado={editado} />
+                                    <PecaGeradaViewer key={geracaoId} texto={resultado.texto} onChangeHtml={alterarHtml} onChangeTexto={alterarTexto} editado={editado} largo={expandido} />
                                 )}
                             </div>
                         </div>
@@ -4257,7 +4714,7 @@ OAB nº ${advogadoOab}`;
                 }
                 if (data?.liberado) {
                     setAtivo(true);
-                    setResultado({ tipo: 'sucesso', texto: 'Modo avançado ativado nesta sessão. Ainda não há nenhuma funcionalidade adicional.' });
+                    setResultado({ tipo: 'sucesso', texto: 'Modo avançado ativado nesta sessão.' });
                 } else {
                     setAtivo(false);
                     setResultado({ tipo: 'erro', texto: data?.motivo || 'Não autorizado.' });
@@ -4300,6 +4757,187 @@ OAB nº ${advogadoOab}`;
                         {ativando ? <i className="fa-solid fa-spinner fa-spin"></i> : <i className="fa-solid fa-user-shield"></i>}
                         {ativo ? 'Verificar novamente' : 'Ativar modo avançado'}
                     </button>
+
+                    {ativo && <PainelFeedbackRecebido supabaseClient={supabaseClient} />}
+                </div>
+            );
+        }
+
+        // Só visível na conta da Camila por enquanto — a trava de verdade não é
+        // essa checagem de e-mail no front (é só o que decide se o card aparece),
+        // é a policy de INSERT do feedback_usuario (só grava em nome de quem
+        // está logado). Sem risco de segurança em deixar a checagem simples
+        // aqui: não é um recurso privilegiado, é só um formulário.
+        const EMAIL_AVALIADORA = 'gomesnunes.camila@gmail.com';
+
+        function AvaliadorCamilaCard({ session, supabaseClient }) {
+            const [tipo, setTipo] = useState('sugestao');
+            const [nota, setNota] = useState(0);
+            const [mensagem, setMensagem] = useState('');
+            const [enviando, setEnviando] = useState(false);
+            const [resultado, setResultado] = useState(null);
+            const [enviados, setEnviados] = useState(null);
+
+            const carregarEnviados = () => {
+                supabaseClient
+                    .from('feedback_usuario')
+                    .select('id, tipo, nota, mensagem, criado_em')
+                    .order('criado_em', { ascending: false })
+                    .then(({ data, error }) => { if (!error) setEnviados(data || []); });
+            };
+
+            useEffect(carregarEnviados, []);
+
+            const enviar = async (e) => {
+                e.preventDefault();
+                if (!mensagem.trim()) { setResultado({ tipo: 'erro', texto: 'Escreva sua mensagem antes de enviar.' }); return; }
+                setEnviando(true);
+                setResultado(null);
+                const { error } = await supabaseClient.from('feedback_usuario').insert({
+                    user_id: session.user.id,
+                    autor_nome: session.user.user_metadata?.nome || null,
+                    tipo,
+                    nota: tipo === 'avaliacao' && nota > 0 ? nota : null,
+                    mensagem: mensagem.trim(),
+                });
+                setEnviando(false);
+                if (error) {
+                    setResultado({ tipo: 'erro', texto: error.message || 'Não foi possível enviar agora.' });
+                } else {
+                    setResultado({ tipo: 'sucesso', texto: 'Enviado! Obrigado pelo retorno.' });
+                    setMensagem('');
+                    setNota(0);
+                    carregarEnviados();
+                }
+            };
+
+            const ROTULOS_TIPO = { critica: 'Crítica', sugestao: 'Sugestão', avaliacao: 'Avaliação' };
+
+            return (
+                <div className="bg-white rounded-2xl border border-stone-200 shadow-sm p-5 space-y-4">
+                    <div>
+                        <h3 className="font-bold text-stone-900 text-sm flex items-center gap-2">
+                            <i className="fa-solid fa-comment-dots text-indigo-500"></i> Enviar crítica, sugestão ou avaliação
+                        </h3>
+                        <p className="text-stone-500 text-xs mt-0.5">Vai direto pra quem administra o JurisControl — pode escrever livremente, positivo ou negativo.</p>
+                    </div>
+
+                    {resultado && (
+                        <div className={`p-3 rounded-xl text-xs font-medium ${resultado.tipo === 'sucesso' ? 'bg-emerald-50 text-emerald-700 border border-emerald-200' : 'bg-rose-50 text-rose-700 border border-rose-200'}`}>
+                            {resultado.texto}
+                        </div>
+                    )}
+
+                    <form onSubmit={enviar} className="space-y-3">
+                        <div className="flex gap-2">
+                            {Object.entries(ROTULOS_TIPO).map(([valor, rotulo]) => (
+                                <button
+                                    key={valor}
+                                    type="button"
+                                    onClick={() => setTipo(valor)}
+                                    className={`px-3 py-1.5 rounded-lg text-xs font-semibold ${tipo === valor ? 'bg-indigo-600 text-white' : 'bg-stone-100 text-stone-600 hover:bg-stone-200'}`}
+                                >
+                                    {rotulo}
+                                </button>
+                            ))}
+                        </div>
+
+                        {tipo === 'avaliacao' && (
+                            <div className="flex items-center gap-1">
+                                {[1, 2, 3, 4, 5].map(n => (
+                                    <button key={n} type="button" onClick={() => setNota(n)} className="text-xl leading-none">
+                                        <i className={`fa-solid fa-star ${n <= nota ? 'text-amber-500' : 'text-stone-200'}`}></i>
+                                    </button>
+                                ))}
+                            </div>
+                        )}
+
+                        <textarea
+                            value={mensagem}
+                            onChange={e => setMensagem(e.target.value)}
+                            rows={4}
+                            placeholder="Escreva aqui..."
+                            className="w-full p-2.5 bg-stone-50 border border-stone-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-amber-500"
+                        />
+
+                        <button
+                            type="submit"
+                            disabled={enviando}
+                            className="px-4 py-2 bg-indigo-600 hover:bg-indigo-700 disabled:opacity-50 text-white font-semibold rounded-xl text-sm flex items-center gap-2"
+                        >
+                            {enviando ? <i className="fa-solid fa-spinner fa-spin"></i> : <i className="fa-solid fa-paper-plane"></i>} Enviar
+                        </button>
+                    </form>
+
+                    {enviados && enviados.length > 0 && (
+                        <div className="pt-3 border-t border-stone-200 space-y-2">
+                            <p className="text-[11px] font-bold text-stone-400 uppercase">Já enviados</p>
+                            {enviados.map(f => (
+                                <div key={f.id} className="p-2.5 bg-stone-50 rounded-lg text-xs text-stone-600">
+                                    <span className="font-semibold text-stone-800">{ROTULOS_TIPO[f.tipo]}</span>
+                                    {f.nota && <span className="text-amber-500 ml-1">{'★'.repeat(f.nota)}</span>}
+                                    <span className="text-stone-400 ml-2">{new Date(f.criado_em).toLocaleDateString('pt-BR')}</span>
+                                    <p className="mt-0.5">{f.mensagem}</p>
+                                </div>
+                            ))}
+                        </div>
+                    )}
+                </div>
+            );
+        }
+
+        // Só aparece pra quem já ativou o modo avançado (role admin + lista
+        // oculta + MFA, ver ModoAvancadoCard) — lê todo feedback via a policy
+        // "administrador ve todo feedback" (checa app_metadata.role direto no
+        // JWT, sem precisar de Edge Function pra isso).
+        function PainelFeedbackRecebido({ supabaseClient }) {
+            const [feedback, setFeedback] = useState(null);
+
+            const carregar = () => {
+                supabaseClient
+                    .from('feedback_usuario')
+                    .select('id, autor_nome, tipo, nota, mensagem, lido, criado_em')
+                    .order('criado_em', { ascending: false })
+                    .then(({ data, error }) => { if (!error) setFeedback(data || []); });
+            };
+
+            useEffect(carregar, []);
+
+            const marcarLido = (id) => {
+                supabaseClient.from('feedback_usuario').update({ lido: true }).eq('id', id).then(() => carregar());
+            };
+
+            const ROTULOS_TIPO = { critica: 'Crítica', sugestao: 'Sugestão', avaliacao: 'Avaliação' };
+
+            return (
+                <div className="pt-4 border-t border-stone-200 space-y-3">
+                    <h4 className="font-bold text-stone-900 text-sm flex items-center gap-2">
+                        <i className="fa-solid fa-inbox text-indigo-500"></i> Críticas, sugestões e avaliações recebidas
+                        {feedback && feedback.some(f => !f.lido) && (
+                            <span className="text-[10px] font-bold px-1.5 py-0.5 rounded-full bg-rose-100 text-rose-700">{feedback.filter(f => !f.lido).length} não lida(s)</span>
+                        )}
+                    </h4>
+
+                    {feedback === null && <p className="text-xs text-stone-400"><i className="fa-solid fa-spinner fa-spin mr-2"></i>Carregando...</p>}
+                    {feedback && feedback.length === 0 && <p className="text-xs text-stone-400">Nenhum feedback recebido ainda.</p>}
+
+                    <div className="space-y-2 max-h-96 overflow-y-auto">
+                        {(feedback || []).map(f => (
+                            <div key={f.id} className={`p-3 rounded-xl text-xs border ${f.lido ? 'bg-stone-50 border-stone-200' : 'bg-indigo-50 border-indigo-200'}`}>
+                                <div className="flex items-center justify-between gap-2">
+                                    <span className="font-bold text-stone-800">{ROTULOS_TIPO[f.tipo]}{f.nota ? ` — ${'★'.repeat(f.nota)}` : ''}</span>
+                                    <span className="text-stone-400">{new Date(f.criado_em).toLocaleString('pt-BR')}</span>
+                                </div>
+                                <p className="text-stone-500 mt-0.5">{f.autor_nome || 'Sem nome'}</p>
+                                <p className="mt-1.5 text-stone-700">{f.mensagem}</p>
+                                {!f.lido && (
+                                    <button onClick={() => marcarLido(f.id)} className="mt-2 text-[11px] font-semibold text-indigo-600 hover:underline">
+                                        Marcar como lido
+                                    </button>
+                                )}
+                            </div>
+                        ))}
+                    </div>
                 </div>
             );
         }
@@ -4348,6 +4986,10 @@ OAB nº ${advogadoOab}`;
 
                     {session?.user?.app_metadata?.role === 'admin' && (
                         <ModoAvancadoCard session={session} supabaseClient={supabaseClient} />
+                    )}
+
+                    {session?.user?.email?.toLowerCase() === EMAIL_AVALIADORA && (
+                        <AvaliadorCamilaCard session={session} supabaseClient={supabaseClient} />
                     )}
 
                     <div className="bg-white rounded-2xl border border-stone-200 shadow-sm p-5 space-y-4">
