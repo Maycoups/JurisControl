@@ -1,5 +1,9 @@
 // Edge Function: datajud-busca
-// Recebe { numeroCNJ, apiKey? } e devolve { movimentacoes, tribunal, fonte, mensagem }.
+// Recebe { numeroCNJ, apiKey? } e devolve { movimentacoes, classe, orgaoJulgador,
+// dataAjuizamento, assuntos, ultimaMovimentacao, tribunal, fonte, mensagem }.
+// classe/orgaoJulgador/dataAjuizamento/assuntos/ultimaMovimentacao existem pra
+// alimentar o preenchimento automático (e o botão de reiniciar) dos campos
+// Andamento/Classe Judicial/Vara do processo — ver DataJudPanel no index.html.
 //
 // FONTE: API Pública do DataJud (CNJ) — https://datajud-wiki.cnj.jus.br/api-publica/
 // Endpoint por tribunal: https://api-publica.datajud.cnj.jus.br/api_publica_{alias}/_search
@@ -133,7 +137,9 @@ Deno.serve(async (req: Request) => {
     }
 
     // Cada hit é a "capa" do processo indexada pelo tribunal; o array de movimentações
-    // processuais fica em _source.movimentos (nome de campo padrão do DataJud).
+    // processuais fica em _source.movimentos (nome de campo padrão do DataJud). O
+    // resto da "capa" (classe, órgão julgador, assuntos, data de ajuizamento) também
+    // vem em _source — só não era aproveitado antes, ficava só o array de movimentos.
     const origem = hits[0]?._source ?? {};
     const movimentos = Array.isArray(origem.movimentos) ? origem.movimentos : [];
 
@@ -148,8 +154,23 @@ Deno.serve(async (req: Request) => {
         (b.data ?? "").localeCompare(a.data ?? ""),
       );
 
+    const classe = (origem.classe as { nome?: string } | undefined)?.nome ?? null;
+    const orgaoJulgador = (origem.orgaoJulgador as { nome?: string } | undefined)?.nome ?? null;
+    const dataAjuizamento = (origem.dataAjuizamento as string | undefined) ?? null;
+    const assuntos = Array.isArray(origem.assuntos)
+      ? (origem.assuntos as Array<{ nome?: string }>).map((a) => a.nome).filter(Boolean)
+      : [];
+    // A movimentação mais recente já vem ordenada em 1º lugar acima — é o retrato
+    // mais atual do "andamento" do processo, pronto pra sugerir como valor do campo.
+    const ultimaMovimentacao = movimentacoes[0]?.nome ?? null;
+
     return jsonResponse({
       movimentacoes,
+      classe,
+      orgaoJulgador,
+      dataAjuizamento,
+      assuntos,
+      ultimaMovimentacao,
       tribunal: alias,
       fonte: "datajud",
       mensagem: `${movimentacoes.length} movimentação(ões) encontrada(s) no DataJud.`,

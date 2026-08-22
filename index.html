@@ -34,7 +34,7 @@
          paleta). Source Serif 4 saiu — a versão original não usava serifa. -->
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=IBM+Plex+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=IBM+Plex+Mono:wght@400;500;600&family=EB+Garamond:wght@400;500;600;700&display=swap" rel="stylesheet">
 
     <script>
         tailwind.config = {
@@ -569,6 +569,14 @@
         const FONTES_EDITOR = [
             { rotulo: 'Padrão do site', valor: '' },
             { rotulo: 'Times New Roman', valor: '"Times New Roman", Times, serif' },
+            // Georgia é fonte de sistema (Windows/Mac já vêm com ela — no Linux
+            // sem Georgia instalada, cai pro fallback serif normal). EB Garamond
+            // é a família aberta mais próxima da Garamond clássica, carregada
+            // via Google Fonts (mesma fonte de sempre do app) — funciona igual
+            // em qualquer sistema, diferente de uma "Garamond" que só existe de
+            // verdade em máquinas com Office instalado.
+            { rotulo: 'Georgia', valor: 'Georgia, "Times New Roman", serif' },
+            { rotulo: 'Garamond', valor: '"EB Garamond", Garamond, serif' },
         ];
 
         async function carregarTiptap() {
@@ -4101,6 +4109,11 @@ OAB nº ${advogadoOab}`;
             return null;
         }
 
+        // Só a fileira de botões — sem posicionamento próprio (nem sticky, nem
+        // sombra). Quem cuida de grudar no topo é o BarraECabecalhoFixos logo
+        // abaixo, que agrupa ela com a faixa de cabeçalho como uma coisa só —
+        // pedido explícito: a barra fica ACIMA do cabeçalho, e as duas coladas
+        // juntas no topo enquanto rola a peça.
         function BarraFerramentasEditor({ editor, extra }) {
             // Tiptap não é reativo por si só — escuta as transações do editor (toda
             // digitação, todo clique) e força um novo render, só pra manter os
@@ -4112,9 +4125,47 @@ OAB nº ${advogadoOab}`;
                 return () => editor.off('transaction', atualizar);
             }, [editor]);
 
-            // Destaca a barra (sombra + fundo sólido) assim que ela "gruda" no
-            // topo da área rolável — sentinela de 1px logo acima dela: enquanto
-            // visível, a barra ainda não colou; quando sai da tela, colou.
+            const grupos = criarComandosFormatacao(editor).filter(g => g.length > 0);
+            const separador = <div className="w-px h-5 bg-stone-200 mx-1"></div>;
+            const fonteAtual = editor.getAttributes('textStyle').fontFamily || '';
+
+            return (
+                <div className="flex items-center gap-0.5 flex-wrap p-1.5 border-b border-stone-200 bg-stone-50 rounded-t-lg">
+                    <select
+                        title="Fonte"
+                        value={fonteAtual}
+                        onChange={(e) => {
+                            const valor = e.target.value;
+                            if (valor) editor.chain().focus().setFontFamily(valor).run();
+                            else editor.chain().focus().unsetFontFamily().run();
+                        }}
+                        className="h-8 px-2 rounded-lg text-xs border border-stone-200 bg-white text-stone-700 focus:outline-none focus:ring-2 focus:ring-amber-400"
+                    >
+                        {FONTES_EDITOR.map(f => <option key={f.valor} value={f.valor}>{f.rotulo}</option>)}
+                    </select>
+                    {separador}
+                    {grupos.map((grupo, i) => (
+                        <React.Fragment key={i}>
+                            {i > 0 && separador}
+                            {grupo.map(cmd => (
+                                <BotaoFormatoEditor key={cmd.titulo} titulo={cmd.titulo} ativo={cmd.ativo} onClick={cmd.acao}>
+                                    {cmd.cor
+                                        ? <span className="w-3.5 h-3.5 rounded-full ring-1 ring-inset ring-black/10" style={{ background: cmd.cor }}></span>
+                                        : <i className={`fa-solid ${cmd.icone}`}></i>}
+                                </BotaoFormatoEditor>
+                            ))}
+                        </React.Fragment>
+                    ))}
+                    {extra}
+                </div>
+            );
+        }
+
+        // Barra de ferramentas + cabeçalho grudados juntos no topo enquanto rola
+        // a peça (nessa ordem: barra primeiro, cabeçalho embaixo dela) — sentinela
+        // de 1px logo acima detecta quando o conjunto "colou" no topo da área
+        // rolável, pra dar sombra/fundo sólido só nesse momento.
+        function BarraECabecalhoFixos({ editor, extra, configDocumento }) {
             const sentinelaRef = useRef(null);
             const [presa, setPresa] = useState(false);
             useEffect(() => {
@@ -4128,40 +4179,12 @@ OAB nº ${advogadoOab}`;
                 return () => observer.disconnect();
             }, []);
 
-            const grupos = criarComandosFormatacao(editor).filter(g => g.length > 0);
-            const separador = <div className="w-px h-5 bg-stone-200 mx-1"></div>;
-            const fonteAtual = editor.getAttributes('textStyle').fontFamily || '';
-
             return (
                 <>
                     <div ref={sentinelaRef} className="h-px"></div>
-                    <div className={`flex items-center gap-0.5 flex-wrap p-1.5 border-b rounded-t-lg sticky top-0 z-10 transition-shadow ${presa ? 'bg-white border-stone-200 shadow-md' : 'bg-stone-50 border-stone-200'}`}>
-                        <select
-                            title="Fonte"
-                            value={fonteAtual}
-                            onChange={(e) => {
-                                const valor = e.target.value;
-                                if (valor) editor.chain().focus().setFontFamily(valor).run();
-                                else editor.chain().focus().unsetFontFamily().run();
-                            }}
-                            className="h-8 px-2 rounded-lg text-xs border border-stone-200 bg-white text-stone-700 focus:outline-none focus:ring-2 focus:ring-amber-400"
-                        >
-                            {FONTES_EDITOR.map(f => <option key={f.valor} value={f.valor}>{f.rotulo}</option>)}
-                        </select>
-                        {separador}
-                        {grupos.map((grupo, i) => (
-                            <React.Fragment key={i}>
-                                {i > 0 && separador}
-                                {grupo.map(cmd => (
-                                    <BotaoFormatoEditor key={cmd.titulo} titulo={cmd.titulo} ativo={cmd.ativo} onClick={cmd.acao}>
-                                        {cmd.cor
-                                            ? <span className="w-3.5 h-3.5 rounded-full ring-1 ring-inset ring-black/10" style={{ background: cmd.cor }}></span>
-                                            : <i className={`fa-solid ${cmd.icone}`}></i>}
-                                    </BotaoFormatoEditor>
-                                ))}
-                            </React.Fragment>
-                        ))}
-                        {extra}
+                    <div className={`sticky top-0 z-10 transition-shadow ${presa ? 'shadow-md' : ''}`}>
+                        <BarraFerramentasEditor editor={editor} extra={extra} />
+                        <FaixaLayoutPagina config={configDocumento} posicao="cabecalho" />
                     </div>
                 </>
             );
@@ -4419,8 +4442,9 @@ OAB nº ${advogadoOab}`;
 
             return (
                 <div className="w-[21cm] max-w-full mx-auto bg-white rounded-lg shadow-[0_1px_4px_rgba(15,23,42,0.08)] border border-stone-200 overflow-hidden">
-                    <FaixaLayoutPagina config={configDocumento} posicao="cabecalho" />
-                    {editor ? <BarraFerramentasEditor editor={editor} extra={<AssistenteEditorPanel editor={editor} supabaseClient={supabaseClient} />} /> : (
+                    {editor ? (
+                        <BarraECabecalhoFixos editor={editor} extra={<AssistenteEditorPanel editor={editor} supabaseClient={supabaseClient} />} configDocumento={configDocumento} />
+                    ) : (
                         <div className="p-1.5 border-b border-stone-200 bg-stone-50 text-[11px] text-stone-400 flex items-center gap-2">
                             <i className="fa-solid fa-spinner fa-spin"></i> Carregando editor...
                         </div>
@@ -4720,8 +4744,14 @@ OAB nº ${advogadoOab}`;
             const texto = posicao === 'cabecalho' ? config?.cabecalho : config?.rodape;
             const mostrarLogo = posicao === 'cabecalho' && config?.logoUrl;
             if (!texto && !mostrarLogo) return null;
+            // O rodapé fica sticky no fim da área rolável (mesmo princípio do
+            // cabeçalho, só que "bottom" em vez de "top") — pedido explícito: as
+            // duas faixas continuam visíveis enquanto rola o corpo da peça.
+            const classePosicao = posicao === 'cabecalho'
+                ? 'border-b border-stone-100'
+                : 'border-t border-stone-100 sticky bottom-0';
             return (
-                <div className={`px-8 md:px-12 py-3 text-[11px] text-stone-500 flex items-center gap-3 ${posicao === 'cabecalho' ? 'border-b border-stone-100' : 'border-t border-stone-100'}`}>
+                <div className={`px-8 md:px-12 py-3 text-[11px] text-stone-500 flex items-center gap-3 bg-white ${classePosicao}`}>
                     {mostrarLogo && <img src={config.logoUrl} alt="Logotipo" className="h-8 max-w-[100px] object-contain flex-shrink-0" />}
                     {texto && <span className="whitespace-pre-line">{texto}</span>}
                 </div>
@@ -4732,6 +4762,12 @@ OAB nº ${advogadoOab}`;
             const [tipoPeca, setTipoPeca] = useState(TIPOS_PECA_IA[0]);
             const [clienteId, setClienteId] = useState('');
             const [processoId, setProcessoId] = useState('');
+            // Tribunal/comarca/juízo só aparece quando NÃO há processo selecionado
+            // (o processo já traz essa informação em process.vara — evita pedir de
+            // novo o que já está cadastrado). Lista pronta reaproveitada de
+            // LISTA_TRIBUNAIS_BR (mesma da aba Tribunais), então não precisa digitar
+            // do zero também nesse caso.
+            const [tribunalManual, setTribunalManual] = useState('');
             const [instrucoes, setInstrucoes] = useState('');
             const [loading, setLoading] = useState(false);
             // 'jurisprudencia' | 'minuta' — só pra mostrar em qual etapa a geração
@@ -4799,6 +4835,10 @@ OAB nº ${advogadoOab}`;
 
                 const clienteSelecionado = clients.find(c => c.id === clienteId);
                 const processoSelecionado = processes.find(p => p.id === processoId);
+                // Sem processo vinculado, o tribunal/comarca/juízo digitado ali em
+                // cima é o único jeito de a IA saber a quem endereçar a peça — com
+                // processo, a vara dele já resolve isso, não precisa duplicar.
+                const processoParaContexto = processoSelecionado || (tribunalManual.trim() ? { vara: tribunalManual.trim() } : undefined);
                 const { apiKey, provedor } = await resolverProvedorIA();
 
                 // Etapa 1: busca jurisprudência real relacionada (mesma fonte da aba
@@ -4828,7 +4868,7 @@ OAB nº ${advogadoOab}`;
                                 tipoPeca,
                                 instrucoes,
                                 cliente: clienteSelecionado || undefined,
-                                processo: processoSelecionado || undefined,
+                                processo: processoParaContexto,
                                 jurisprudencia: jurisEncontrada.length > 0 ? jurisEncontrada : undefined,
                             },
                             apiKey: apiKey || undefined,
@@ -5006,6 +5046,23 @@ OAB nº ${advogadoOab}`;
                                 </select>
                             </div>
 
+                            {!processoId && (
+                                <div>
+                                    <label className="block text-xs font-semibold text-stone-600 mb-1">Tribunal / Comarca / Juízo (opcional)</label>
+                                    <input
+                                        list="jc-lista-tribunais-pecas"
+                                        value={tribunalManual}
+                                        onChange={e => setTribunalManual(e.target.value)}
+                                        placeholder="Ex: TJRJ - Comarca da Capital (Rio de Janeiro)"
+                                        className="w-full p-2.5 bg-stone-50 border border-stone-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-amber-500"
+                                    />
+                                    <datalist id="jc-lista-tribunais-pecas">
+                                        {LISTA_TRIBUNAIS_BR.map(t => <option key={t} value={t} />)}
+                                    </datalist>
+                                    <p className="text-[10px] text-stone-400 mt-1">Some quando um processo é selecionado — a vara dele já resolve isso.</p>
+                                </div>
+                            )}
+
                             <div>
                                 <label className="block text-xs font-semibold text-stone-600 mb-1">Instruções adicionais</label>
                                 <textarea
@@ -5037,7 +5094,12 @@ OAB nº ${advogadoOab}`;
 
                         <div className={expandido
                             ? 'fixed inset-y-0 right-0 left-0 md:left-64 z-40 bg-stone-50 flex flex-col'
-                            : 'lg:col-span-2 bg-stone-50 rounded-2xl border border-stone-200 shadow-sm flex flex-col'
+                            // Altura travada (não expandido) — antes crescia junto com o
+                            // conteúdo da peça inteira, empurrando a página toda pra baixo;
+                            // agora tem rolagem própria (flex-1 overflow-y-auto no conteúdo
+                            // logo abaixo já cuidava disso, só faltava o pai ter altura fixa
+                            // pra esse flex-1 valer alguma coisa).
+                            : 'lg:col-span-2 h-[75vh] bg-stone-50 rounded-2xl border border-stone-200 shadow-sm flex flex-col'
                         }>
                             <div className="p-4 border-b border-stone-200 flex items-center justify-between bg-white rounded-t-2xl flex-shrink-0">
                                 <h3 className="font-bold text-stone-900 text-sm">Minuta Gerada</h3>
@@ -5888,12 +5950,14 @@ OAB nº ${advogadoOab}`;
                 acao: initialData.acao || '',
                 status: initialData.status || 'Inicial',
                 fase: initialData.fase || 'Petição Inicial',
+                andamento: initialData.andamento || '',
+                classeJudicial: initialData.classeJudicial || '',
                 valorCausa: initialData.valorCausa || 0,
                 honorariosContratados: initialData.honorariosContratados || 0,
                 proximoPrazo: initialData.proximoPrazo || '',
                 descricaoPrazo: initialData.descricaoPrazo || ''
             } : {
-                numero: '', clienteId: clients[0]?.id || '', area: 'Cível', vara: '', acao: '', status: 'Inicial', fase: 'Petição Inicial', valorCausa: 10000, honorariosContratados: 0, proximoPrazo: '', descricaoPrazo: ''
+                numero: '', clienteId: clients[0]?.id || '', area: 'Cível', vara: '', acao: '', status: 'Inicial', fase: 'Petição Inicial', andamento: '', classeJudicial: '', valorCausa: 10000, honorariosContratados: 0, proximoPrazo: '', descricaoPrazo: ''
             });
             const [numeroError, setNumeroError] = useState('');
 
@@ -5986,13 +6050,23 @@ OAB nº ${advogadoOab}`;
                                     <input placeholder="Ex: Aguardando Réplica" type="text" className="w-full p-2 bg-stone-50 border rounded-lg text-sm" value={form.fase} onChange={e => setForm({...form, fase: e.target.value})} />
                                 </div>
                                 <div>
-                                    <label className="block text-xs font-semibold text-stone-600 mb-1">Próximo Prazo (Data)</label>
-                                    <input type="date" className="w-full p-2 bg-stone-50 border rounded-lg text-sm" value={form.proximoPrazo} onChange={e => setForm({...form, proximoPrazo: e.target.value})} />
+                                    <label className="block text-xs font-semibold text-stone-600 mb-1">Classe Judicial</label>
+                                    <input placeholder="Preenchida pelo CNJ, ou digite" type="text" className="w-full p-2 bg-stone-50 border rounded-lg text-sm" value={form.classeJudicial} onChange={e => setForm({...form, classeJudicial: e.target.value})} />
                                 </div>
                             </div>
                             <div>
-                                <label className="block text-xs font-semibold text-stone-600 mb-1">Descrição do Prazo</label>
-                                <input placeholder="Ex: Réplica" type="text" className="w-full p-2 bg-stone-50 border rounded-lg text-sm" value={form.descricaoPrazo} onChange={e => setForm({...form, descricaoPrazo: e.target.value})} />
+                                <label className="block text-xs font-semibold text-stone-600 mb-1">Andamento Atual</label>
+                                <textarea placeholder="Preenchido automaticamente pela última movimentação do CNJ (aba Visão Geral do processo), ou digite" rows={2} className="w-full p-2 bg-stone-50 border rounded-lg text-sm" value={form.andamento} onChange={e => setForm({...form, andamento: e.target.value})} />
+                            </div>
+                            <div className="grid grid-cols-2 gap-3">
+                                <div>
+                                    <label className="block text-xs font-semibold text-stone-600 mb-1">Próximo Prazo (Data)</label>
+                                    <input type="date" className="w-full p-2 bg-stone-50 border rounded-lg text-sm" value={form.proximoPrazo} onChange={e => setForm({...form, proximoPrazo: e.target.value})} />
+                                </div>
+                                <div>
+                                    <label className="block text-xs font-semibold text-stone-600 mb-1">Descrição do Prazo</label>
+                                    <input placeholder="Ex: Réplica" type="text" className="w-full p-2 bg-stone-50 border rounded-lg text-sm" value={form.descricaoPrazo} onChange={e => setForm({...form, descricaoPrazo: e.target.value})} />
+                                </div>
                             </div>
                             <div className="flex justify-end gap-2 pt-3 border-t">
                                 <button type="button" onClick={onClose} className="px-4 py-2 bg-stone-100 text-stone-700 text-xs font-semibold rounded-lg">Cancelar</button>
@@ -6192,14 +6266,38 @@ OAB nº ${advogadoOab}`;
         // Integração DataJud/CNJ — busca movimentações oficiais pelo número do processo.
         // As movimentações retornadas são só SUGESTÃO: nunca sobrescrevem fase/próximo
         // prazo automaticamente — o advogado decide o que copiar, via o botão "Editar".
-        function DataJudPanel({ process, supabaseClient }) {
+        // Andamento/Classe Judicial: preenchidos automaticamente pela API do
+        // DataJud (a movimentação mais recente vira "Andamento Atual"), mas
+        // sempre editáveis à mão — nunca sobrescreve o que já está salvo sem
+        // pedir, a não ser que a advogada clique em "Reiniciar dados do
+        // processo", que aí sim busca de novo no CNJ e substitui de propósito.
+        function DataJudPanel({ process, supabaseClient, onUpdateProcess }) {
             const [carregando, setCarregando] = useState(false);
             const [erro, setErro] = useState('');
             const [movimentacoes, setMovimentacoes] = useState(null);
             const [mensagem, setMensagem] = useState('');
             const [copiadoIdx, setCopiadoIdx] = useState(null);
+            const [andamento, setAndamento] = useState(process.andamento || '');
+            const [classeJudicial, setClasseJudicial] = useState(process.classeJudicial || '');
+            const [salvandoCampos, setSalvandoCampos] = useState(false);
 
-            const buscar = async () => {
+            const aplicarDadosDaApi = (data, forcar) => {
+                const atualizacoes = {};
+                if (data.ultimaMovimentacao && (forcar || !process.andamento)) {
+                    atualizacoes.andamento = data.ultimaMovimentacao;
+                    setAndamento(data.ultimaMovimentacao);
+                }
+                if (data.classe && (forcar || !process.classeJudicial)) {
+                    atualizacoes.classeJudicial = data.classe;
+                    setClasseJudicial(data.classe);
+                }
+                if (data.orgaoJulgador && (forcar || !process.vara)) {
+                    atualizacoes.vara = data.orgaoJulgador;
+                }
+                if (Object.keys(atualizacoes).length > 0) onUpdateProcess(process.id, atualizacoes);
+            };
+
+            const buscar = async (forcar) => {
                 if (!supabaseClient) { setErro('Cliente Supabase não inicializado.'); return; }
                 setCarregando(true);
                 setErro('');
@@ -6212,12 +6310,24 @@ OAB nº ${advogadoOab}`;
                     if (data && data.error) { setErro(data.error); setMovimentacoes(null); return; }
                     setMovimentacoes(data.movimentacoes || []);
                     setMensagem(data.mensagem || '');
+                    aplicarDadosDaApi(data, !!forcar);
                 } catch (e) {
                     setErro(e.message || 'Falha ao consultar o DataJud.');
                     setMovimentacoes(null);
                 } finally {
                     setCarregando(false);
                 }
+            };
+
+            const reiniciarDados = () => {
+                if (!window.confirm('Isso substitui Andamento, Classe Judicial e Vara pelos dados mais recentes do CNJ, apagando qualquer edição manual feita neles. Continuar?')) return;
+                buscar(true);
+            };
+
+            const salvarCamposManual = () => {
+                setSalvandoCampos(true);
+                onUpdateProcess(process.id, { andamento: andamento.trim(), classeJudicial: classeJudicial.trim() });
+                setTimeout(() => setSalvandoCampos(false), 300);
             };
 
             const copiarMovimentacao = (mov, idx) => {
@@ -6231,29 +6341,64 @@ OAB nº ${advogadoOab}`;
             // "Atualizar do DataJud" pra ver qualquer coisa. O botão continua aqui pra
             // atualizar de novo depois.
             useEffect(() => {
-                buscar();
+                buscar(false);
                 // eslint-disable-next-line react-hooks/exhaustive-deps
             }, [process.numero]);
 
             return (
                 <div className="space-y-3">
-                    <div className="flex items-center justify-between">
+                    <div className="flex items-center justify-between flex-wrap gap-2">
                         <h4 className="text-xs font-bold text-stone-700 uppercase flex items-center gap-2">
-                            <i className="fa-solid fa-landmark-flag text-amber-500"></i> Movimentações (DataJud/CNJ)
+                            <i className="fa-solid fa-landmark-flag text-amber-500"></i> Andamento Processual (DataJud/CNJ)
                         </h4>
-                        <button
-                            onClick={buscar}
-                            disabled={carregando}
-                            className="px-3 py-1.5 bg-amber-500 hover:bg-amber-600 disabled:opacity-60 text-stone-950 text-xs font-bold rounded-lg shadow-sm"
-                        >
-                            {carregando ? 'Buscando...' : 'Atualizar do DataJud'}
-                        </button>
+                        <div className="flex gap-2">
+                            <button
+                                onClick={() => buscar(false)}
+                                disabled={carregando}
+                                className="px-3 py-1.5 bg-amber-500 hover:bg-amber-600 disabled:opacity-60 text-stone-950 text-xs font-bold rounded-lg shadow-sm"
+                            >
+                                {carregando ? 'Buscando...' : 'Atualizar'}
+                            </button>
+                            <button
+                                onClick={reiniciarDados}
+                                disabled={carregando}
+                                title="Busca de novo no CNJ e substitui Andamento, Classe Judicial e Vara"
+                                className="px-3 py-1.5 bg-stone-100 hover:bg-rose-100 disabled:opacity-60 text-stone-600 hover:text-rose-700 text-xs font-bold rounded-lg"
+                            >
+                                <i className="fa-solid fa-rotate mr-1"></i> Reiniciar dados
+                            </button>
+                        </div>
                     </div>
 
                     {erro && <p className="text-xs text-rose-600 bg-rose-50 border border-rose-200 rounded-lg p-2">{erro}</p>}
 
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                        <div>
+                            <label className="block text-[10px] font-bold text-stone-400 uppercase mb-1">Andamento Atual</label>
+                            <textarea
+                                rows={2}
+                                value={andamento}
+                                onChange={e => setAndamento(e.target.value)}
+                                placeholder="Preenchido automaticamente pela última movimentação do CNJ — edite se quiser."
+                                className="w-full p-2 bg-stone-50 border border-stone-200 rounded-lg text-xs focus:outline-none focus:ring-2 focus:ring-amber-400"
+                            />
+                        </div>
+                        <div>
+                            <label className="block text-[10px] font-bold text-stone-400 uppercase mb-1">Classe Judicial</label>
+                            <input
+                                value={classeJudicial}
+                                onChange={e => setClasseJudicial(e.target.value)}
+                                placeholder="Preenchida automaticamente pelo CNJ — edite se quiser."
+                                className="w-full p-2 bg-stone-50 border border-stone-200 rounded-lg text-xs focus:outline-none focus:ring-2 focus:ring-amber-400"
+                            />
+                        </div>
+                    </div>
+                    <button onClick={salvarCamposManual} disabled={salvandoCampos} className="px-3 py-1.5 bg-navy-800 hover:bg-navy-900 disabled:opacity-60 text-white text-xs font-semibold rounded-lg">
+                        {salvandoCampos ? <i className="fa-solid fa-spinner fa-spin"></i> : 'Salvar Andamento/Classe'}
+                    </button>
+
                     {movimentacoes !== null && (
-                        <div className="space-y-2">
+                        <div className="space-y-2 pt-2 border-t border-stone-100">
                             {mensagem && <p className="text-xs text-stone-500">{mensagem}</p>}
                             {movimentacoes.length > 0 && (
                                 <ul className="space-y-1.5 max-h-56 overflow-y-auto pr-1">
@@ -6270,7 +6415,7 @@ OAB nº ${advogadoOab}`;
                                             <button
                                                 onClick={() => copiarMovimentacao(mov, idx)}
                                                 className="shrink-0 text-indigo-600 hover:text-indigo-800 font-semibold whitespace-nowrap"
-                                                title="Copiar texto (cole em Fase ou Descrição do Prazo ao Editar o processo)"
+                                                title="Copiar texto"
                                             >
                                                 <i className="fa-solid fa-copy"></i> {copiadoIdx === idx ? 'Copiado!' : 'Copiar'}
                                             </button>
@@ -6625,35 +6770,38 @@ OAB nº ${advogadoOab}`;
             const [jurisprudencia, setJurisprudencia] = useState(null); // null = ainda não buscou
             const [loadingJuris, setLoadingJuris] = useState(false);
             const [erroJuris, setErroJuris] = useState(null);
+            // process.acao pode vir muito longo em processos importados do DJEN (texto
+            // bruto da publicação) — um termo de busca curto funciona melhor como
+            // ponto de partida. Editável: quem pesquisa jurisprudência quase sempre
+            // precisa refinar o termo (trocar "cobrança de honorários" por só
+            // "honorários advocatícios", por exemplo) — antes era fixo, só o termo
+            // automático, sem forma de tentar outra coisa sem sair da tela.
+            const termoAutomatico = ((process.acao || '').split(/\s+/).slice(0, 8).join(' ') || process.area || '').trim();
+            const [termoBusca, setTermoBusca] = useState(termoAutomatico);
 
-            useEffect(() => {
-                let cancelado = false;
-                // process.acao pode vir muito longo em processos importados do DJEN
-                // (texto bruto da publicação) — um termo de busca curto funciona melhor.
-                const acaoCurta = (process.acao || '').split(/\s+/).slice(0, 8).join(' ');
-                const termo = (acaoCurta || process.area || '').trim();
-                if (!termo || !supabaseClient) return;
-
+            const buscarJurisprudencia = (termo) => {
+                if (!termo?.trim() || !supabaseClient) return;
                 setLoadingJuris(true);
                 setErroJuris(null);
-
                 // Só TJRJ tem fonte real hoje (eproc do próprio tribunal) — os outros
                 // tribunais saíram da busca até termos uma fonte de dados de verdade
                 // pra eles (sem exibir resultado simulado/fake no lugar).
-                invocarFunction(supabaseClient, 'busca-jurisprudencia', { body: { termo, uf: process.uf || 'RJ' } })
+                invocarFunction(supabaseClient, 'busca-jurisprudencia', { body: { termo: termo.trim(), uf: process.uf || 'RJ' } })
                     .then(({ data, error }) => {
-                        if (cancelado) return;
                         if (error) throw error;
                         setJurisprudencia(data);
                     })
                     .catch(err => {
-                        if (cancelado) return;
                         console.error('Erro ao buscar jurisprudência:', err);
                         setErroJuris('Não foi possível buscar jurisprudência relacionada agora.');
                     })
-                    .finally(() => { if (!cancelado) setLoadingJuris(false); });
+                    .finally(() => setLoadingJuris(false));
+            };
 
-                return () => { cancelado = true; };
+            useEffect(() => {
+                setTermoBusca(termoAutomatico);
+                buscarJurisprudencia(termoAutomatico);
+                // eslint-disable-next-line react-hooks/exhaustive-deps
             }, [process.id]);
 
             return (
@@ -6735,7 +6883,7 @@ OAB nº ${advogadoOab}`;
                                         espaço com o Financeiro, agora tem a coluna inteira pra si. */}
                                     <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
                                         <div>
-                                            <DataJudPanel process={process} supabaseClient={supabaseClient} />
+                                            <DataJudPanel process={process} supabaseClient={supabaseClient} onUpdateProcess={onUpdateProcess} />
                                         </div>
                                         <div>
                                             <FinanceiroDoProcessoPanel process={process} clients={clients} financials={financials} onAddFinancial={onAddFinancial} onToggleStatus={onToggleFinancialStatus} />
@@ -6761,6 +6909,35 @@ OAB nº ${advogadoOab}`;
                                         Por enquanto só o TJRJ tem fonte pública com acesso automatizado liberado —
                                         os outros tribunais saem daqui assim que houver uma fonte de dados real pra eles.
                                     </p>
+
+                                    <form
+                                        onSubmit={e => { e.preventDefault(); buscarJurisprudencia(termoBusca); }}
+                                        className="flex gap-2 mb-3"
+                                    >
+                                        <input
+                                            value={termoBusca}
+                                            onChange={e => setTermoBusca(e.target.value)}
+                                            placeholder="Termo de busca — ajuste pra refinar o resultado"
+                                            className="flex-1 p-2 bg-stone-50 border border-stone-200 rounded-lg text-xs focus:outline-none focus:ring-2 focus:ring-indigo-400"
+                                        />
+                                        <button
+                                            type="submit"
+                                            disabled={loadingJuris || !termoBusca.trim()}
+                                            className="px-3 py-2 bg-indigo-600 hover:bg-indigo-700 disabled:opacity-50 text-white text-xs font-semibold rounded-lg whitespace-nowrap"
+                                        >
+                                            <i className="fa-solid fa-magnifying-glass mr-1"></i> Buscar
+                                        </button>
+                                        {termoBusca !== termoAutomatico && (
+                                            <button
+                                                type="button"
+                                                onClick={() => { setTermoBusca(termoAutomatico); buscarJurisprudencia(termoAutomatico); }}
+                                                title="Voltar pro termo sugerido a partir do processo"
+                                                className="px-3 py-2 bg-stone-100 hover:bg-stone-200 text-stone-600 text-xs font-semibold rounded-lg whitespace-nowrap"
+                                            >
+                                                <i className="fa-solid fa-rotate-left"></i>
+                                            </button>
+                                        )}
+                                    </form>
 
                                     {loadingJuris && (
                                         <p className="text-xs text-stone-400"><i className="fa-solid fa-spinner fa-spin mr-2"></i>Buscando jurisprudência relacionada...</p>
