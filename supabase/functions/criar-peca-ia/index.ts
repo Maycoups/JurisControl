@@ -7,6 +7,11 @@
 //   - Meus Modelos / Gerador de Documentos -> 'modelo_documento' (cria do zero, com placeholders),
 //     'revisar_texto' (ajusta um texto já preenchido com dados reais, sem introduzir placeholders)
 //   - Calculadora de Prazos -> 'sugestao_prazo', contexto = { instrucoes }
+//   - Assistente livre dentro do editor de peças (Tiptap) -> 'assistente_editor',
+//     contexto = { textoAtual?: trecho selecionado (ou o documento inteiro),
+//     instrucoes: pedido livre do usuário }. Mais solto que 'revisar_texto': decide
+//     sozinho se o pedido é uma edição (devolve só o texto novo) ou uma pergunta
+//     (responde a pergunta) — ver AssistenteEditorPopover no index.html.
 //
 // MODELO DE CUSTO (dois caminhos):
 //   1. Plano gratuito (padrão, sem `apiKey` no corpo): usa o Gemini com uma chave
@@ -56,7 +61,7 @@ const MODELOS_OPENAI_PERMITIDOS = ["gpt-5.1", "gpt-5.1-mini"];
 const PROVEDORES_VALIDOS = ["gemini", "anthropic", "openai"] as const;
 type Provedor = (typeof PROVEDORES_VALIDOS)[number];
 
-const TAREFAS_VALIDAS = ["minuta", "resumo", "proximo_passo", "modelo_documento", "sugestao_prazo", "revisar_texto"] as const;
+const TAREFAS_VALIDAS = ["minuta", "resumo", "proximo_passo", "modelo_documento", "sugestao_prazo", "revisar_texto", "assistente_editor"] as const;
 type Tarefa = (typeof TAREFAS_VALIDAS)[number];
 
 const SYSTEM_PROMPT = `Você é um assistente jurídico especializado em direito brasileiro, integrado ao sistema JurisControl de um(a) advogado(a) autônomo(a).
@@ -124,7 +129,7 @@ Deno.serve(async (req: Request) => {
   if ((tarefa === "resumo" || tarefa === "proximo_passo") && Object.keys(processo).length === 0) {
     return jsonResponse({ error: "Dados do processo ausentes no contexto." }, 400);
   }
-  if ((tarefa === "modelo_documento" || tarefa === "sugestao_prazo" || tarefa === "revisar_texto") && !(contexto.instrucoes ?? "").toString().trim()) {
+  if ((tarefa === "modelo_documento" || tarefa === "sugestao_prazo" || tarefa === "revisar_texto" || tarefa === "assistente_editor") && !(contexto.instrucoes ?? "").toString().trim()) {
     return jsonResponse({ error: "Descreva o que você precisa." }, 400);
   }
   if (tarefa === "revisar_texto" && !(contexto.textoAtual ?? "").toString().trim()) {
@@ -387,6 +392,21 @@ function montarPrompt(
       dadosProcesso,
       `\n--- TEXTO ATUAL A REVISAR ---\n${(textoAtual ?? "").trim()}`,
       "\nDevolva SÓ o texto revisado completo (mesmo formato de documento, sem markdown), sem explicações antes ou depois.",
+    ].filter(Boolean).join("\n");
+  }
+
+  if (tarefa === "assistente_editor") {
+    const temTexto = (textoAtual ?? "").trim().length > 0;
+    return [
+      "O(a) advogado(a) está usando o assistente de IA embutido no editor de texto, dentro de um documento jurídico que já está redigindo.",
+      temTexto
+        ? `Trecho do documento que ele(a) tinha selecionado no momento do pedido (pode ser o documento inteiro, se nada estava selecionado):\n--- TRECHO ---\n${(textoAtual ?? "").trim()}\n--- FIM DO TRECHO ---`
+        : "Não havia nenhum trecho selecionado — não presuma um texto que não foi fornecido.",
+      `\nPedido do(a) advogado(a): "${(instrucoes ?? "").trim()}"`,
+      "\nDecida pelo tipo de pedido:",
+      "- Se for um pedido de EDIÇÃO do trecho (reescrever, resumir, expandir, corrigir, mudar o tom, traduzir etc.): devolva SÓ o texto resultante, pronto para substituir o trecho original — sem comentários antes ou depois, sem markdown. Preserve nomes, números, valores e datas reais que já estejam no trecho, a menos que o pedido seja justamente para mudar algum deles.",
+      "- Se for uma PERGUNTA ou pedido de explicação (não uma edição): responda diretamente e objetivamente, em texto simples, sem tentar reescrever o trecho.",
+      `\nAo final da resposta, em linha separada, inclua: "${AVISO_SUGESTAO}"`,
     ].filter(Boolean).join("\n");
   }
 

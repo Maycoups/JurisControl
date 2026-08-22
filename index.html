@@ -141,12 +141,12 @@
 
         /* --- Editor de Peças: legal design / visual law ---
            Estilos do conteúdo dentro do editor Tiptap (ver EditorPecaTiptap e
-           criarNoCaixaDestaque). Escopado em .jc-editor-peca .ProseMirror pra não
+           criarNosCaixaDestaque). Escopado em .jc-editor-peca .ProseMirror pra não
            vazar pro resto do app — o container recebe .jc-editor-peca e o Tiptap
            anexa .ProseMirror como filho dele. */
 
-        /* Caixa de destaque: bloco colorido com rótulo fixo (ícone + texto real
-           no DOM, não CSS gerado — ver comentário em criarNoCaixaDestaque sobre o
+        /* Caixa de destaque: bloco colorido com rótulo editável (ícone + texto real
+           no DOM, não CSS gerado — ver comentário em criarNosCaixaDestaque sobre o
            motivo). Cores fixas por tipo, iguais claro/escuro só trocando o tom. */
         .jc-editor-peca .ProseMirror .jc-callout {
             margin: 1.25rem 0;
@@ -159,7 +159,7 @@
             font-weight: 700;
             letter-spacing: 0.04em;
             margin-bottom: 0.5rem;
-            cursor: default;
+            outline: none;
         }
         .jc-editor-peca .ProseMirror .jc-callout-corpo > *:last-child { margin-bottom: 0; }
         .jc-editor-peca .ProseMirror .jc-callout-atencao { background: #fffbeb; border-color: #fde68a; }
@@ -480,19 +480,39 @@
             importante: { rotulo: '📌 IMPORTANTE', icone: 'fa-thumbtack', titulo: 'Caixa: Importante' },
             definicao: { rotulo: '📖 DEFINIÇÃO', icone: 'fa-book', titulo: 'Caixa: Definição' },
         };
-        // Node custom do Tiptap pra caixa de destaque. O rótulo (ícone + texto) é
-        // renderizado como um <div> real dentro do HTML, não via CSS ::before —
-        // de propósito, pra sobreviver fora do editor: cópia de texto puro
-        // (onChangeTexto/getText), exportação pra Word e qualquer reabertura do
-        // HTML salvo continuam mostrando "⚠️ ATENÇÃO" mesmo sem o CSS do app.
-        // O conteúdo editável fica isolado em .jc-callout-corpo (contentElement no
-        // parseHTML) pra esse rótulo nunca ser tratado como parte do texto editável.
-        function criarNoCaixaDestaque(Node, mergeAttributes) {
-            return Node.create({
+        // Três nodes custom do Tiptap pra caixa de destaque — título (texto livre,
+        // editável, semeado com o rótulo padrão tipo "⚠️ ATENÇÃO" mas o usuário pode
+        // reescrever) e corpo (block+), dentro de um node "caixa" que só aceita
+        // exatamente essa dupla. Título editável de propósito (era fixo/travado
+        // antes — pedido explícito: dá pra renomear pra "ATENÇÃO — PRAZO FATAL",
+        // por exemplo, sem perder o estilo da caixa).
+        function criarNosCaixaDestaque(Node, mergeAttributes) {
+            const Titulo = Node.create({
+                name: 'caixaDestaqueTitulo',
+                content: 'inline*',
+                parseHTML() {
+                    return [{ tag: 'div.jc-callout-titulo' }];
+                },
+                renderHTML({ HTMLAttributes }) {
+                    return ['div', mergeAttributes(HTMLAttributes, { class: 'jc-callout-titulo' }), 0];
+                },
+            });
+            const Corpo = Node.create({
+                name: 'caixaDestaqueCorpo',
+                content: 'block+',
+                parseHTML() {
+                    return [{ tag: 'div.jc-callout-corpo' }];
+                },
+                renderHTML({ HTMLAttributes }) {
+                    return ['div', mergeAttributes(HTMLAttributes, { class: 'jc-callout-corpo' }), 0];
+                },
+            });
+            const Caixa = Node.create({
                 name: 'caixaDestaque',
                 group: 'block',
-                content: 'block+',
+                content: 'caixaDestaqueTitulo caixaDestaqueCorpo',
                 defining: true,
+                isolating: true,
                 addAttributes() {
                     return {
                         tipo: {
@@ -503,23 +523,29 @@
                     };
                 },
                 parseHTML() {
-                    return [{ tag: 'div[data-caixa-destaque]', contentElement: 'div.jc-callout-corpo' }];
+                    return [{ tag: 'div[data-caixa-destaque]' }];
                 },
                 renderHTML({ HTMLAttributes, node }) {
-                    const info = TIPOS_CAIXA_DESTAQUE[node.attrs.tipo] || TIPOS_CAIXA_DESTAQUE.importante;
                     return ['div', mergeAttributes(HTMLAttributes, {
                         'data-caixa-destaque': '',
                         class: `jc-callout jc-callout-${node.attrs.tipo}`,
-                    }),
-                        ['div', { class: 'jc-callout-titulo', contenteditable: 'false' }, info.rotulo],
-                        ['div', { class: 'jc-callout-corpo' }, 0],
-                    ];
+                    }), 0];
                 },
             });
+            return [Titulo, Corpo, Caixa];
         }
 
+        // Fontes disponíveis pro seletor da barra — a do próprio site (Inter,
+        // vazio = não força nada, cai no CSS normal) e Times New Roman (a
+        // clássica de petição/documento jurídico impresso). Lista central pra
+        // não duplicar entre o <select> e o texto de exibição.
+        const FONTES_EDITOR = [
+            { rotulo: 'Padrão do site', valor: '' },
+            { rotulo: 'Times New Roman', valor: '"Times New Roman", Times, serif' },
+        ];
+
         async function carregarTiptap() {
-            const [core, starterKit, underline, tableMod, textAlign, highlightMod, taskListMod, taskItemMod] = await Promise.all([
+            const [core, starterKit, underline, tableMod, textAlign, highlightMod, taskListMod, taskItemMod, textStyleMod] = await Promise.all([
                 importarModulo(`@tiptap/core@${TIPTAP_VERSAO}`),
                 importarModulo(`@tiptap/starter-kit@${TIPTAP_VERSAO}`),
                 importarModulo(`@tiptap/extension-underline@${TIPTAP_VERSAO}`),
@@ -532,6 +558,9 @@
                 // Lista de verificação — requisitos/pedidos que dá pra ir riscando.
                 importarModulo(`@tiptap/extension-task-list@${TIPTAP_VERSAO}`),
                 importarModulo(`@tiptap/extension-task-item@${TIPTAP_VERSAO}`),
+                // TextStyleKit já inclui FontFamily (fonte por trecho selecionado) —
+                // testado ao vivo (não tem export default, só TextStyleKit nomeado).
+                importarModulo(`@tiptap/extension-text-style@${TIPTAP_VERSAO}`),
             ]);
             return {
                 Editor: core.Editor,
@@ -543,7 +572,8 @@
                     highlightMod.default.configure({ multicolor: true }),
                     taskListMod.default,
                     taskItemMod.default.configure({ nested: true }),
-                    criarNoCaixaDestaque(core.Node, core.mergeAttributes),
+                    textStyleMod.TextStyleKit,
+                    ...criarNosCaixaDestaque(core.Node, core.mergeAttributes),
                 ],
             };
         }
@@ -3986,16 +4016,21 @@ OAB nº ${advogadoOab}`;
                 { titulo: 'Citação', icone: 'fa-quote-left', ativo: editor.isActive('blockquote'), acao: () => editor.chain().focus().toggleBlockquote().run() },
             ];
             // Caixas de destaque: o núcleo do "legal design" no editor — ver
-            // TIPOS_CAIXA_DESTAQUE e criarNoCaixaDestaque, lá em cima. Cada botão
-            // insere a caixa já com o tipo certo (sem seletor à parte); pra trocar
-            // o tipo depois, apaga e insere de novo.
+            // TIPOS_CAIXA_DESTAQUE e criarNosCaixaDestaque, lá em cima. Cada botão
+            // insere a caixa já com o tipo certo e o rótulo padrão pronto no
+            // título — que agora é editável (dá pra reescrever, ex: "ATENÇÃO —
+            // PRAZO FATAL"); pra trocar o TIPO (cor/ícone) depois, apaga e insere
+            // de novo.
             const grupoDestaque = Object.entries(TIPOS_CAIXA_DESTAQUE).map(([tipo, info]) => ({
                 titulo: info.titulo,
                 icone: info.icone,
                 acao: () => editor.chain().focus().insertContent({
                     type: 'caixaDestaque',
                     attrs: { tipo },
-                    content: [{ type: 'paragraph' }],
+                    content: [
+                        { type: 'caixaDestaqueTitulo', content: [{ type: 'text', text: info.rotulo }] },
+                        { type: 'caixaDestaqueCorpo', content: [{ type: 'paragraph' }] },
+                    ],
                 }).run(),
             }));
             const grupoAlinhamento = [
@@ -4007,14 +4042,39 @@ OAB nº ${advogadoOab}`;
             const grupoInserir = [
                 { titulo: 'Inserir tabela 3x3', icone: 'fa-table', acao: () => editor.chain().focus().insertTable({ rows: 3, cols: 3, withHeaderRow: true }).run() },
             ];
+            // Só aparece com o cursor dentro de uma tabela — o resto do tempo essas
+            // ações não fazem sentido (e o Tiptap nem executa fora de uma tabela).
+            const grupoTabela = editor.isActive('table') ? [
+                { titulo: 'Adicionar linha acima', icone: 'fa-plus', acao: () => editor.chain().focus().addRowBefore().run() },
+                { titulo: 'Adicionar linha abaixo', icone: 'fa-plus', acao: () => editor.chain().focus().addRowAfter().run() },
+                { titulo: 'Remover linha', icone: 'fa-trash-can', acao: () => editor.chain().focus().deleteRow().run() },
+                { titulo: 'Adicionar coluna à esquerda', icone: 'fa-plus', acao: () => editor.chain().focus().addColumnBefore().run() },
+                { titulo: 'Adicionar coluna à direita', icone: 'fa-plus', acao: () => editor.chain().focus().addColumnAfter().run() },
+                { titulo: 'Remover coluna', icone: 'fa-trash-can', acao: () => editor.chain().focus().deleteColumn().run() },
+                { titulo: 'Remover tabela', icone: 'fa-table', acao: () => editor.chain().focus().deleteTable().run() },
+            ] : [];
             const grupoHistorico = [
                 { titulo: 'Desfazer', icone: 'fa-rotate-left', acao: () => editor.chain().focus().undo().run() },
                 { titulo: 'Refazer', icone: 'fa-rotate-right', acao: () => editor.chain().focus().redo().run() },
             ];
-            return [grupoTexto, grupoMarcaTexto, grupoEstrutura, grupoDestaque, grupoAlinhamento, grupoInserir, grupoHistorico];
+            return [grupoTexto, grupoMarcaTexto, grupoEstrutura, grupoDestaque, grupoAlinhamento, grupoInserir, grupoTabela, grupoHistorico];
         }
 
-        function BarraFerramentasEditor({ editor }) {
+        // Procura o ancestral com scroll de verdade (overflow-y auto/scroll) —
+        // a barra fica sticky dentro dele, não da janela, então é ele que
+        // precisa ser a "raiz" do IntersectionObserver abaixo pra detectar
+        // corretamente quando a barra grudou no topo.
+        function encontrarAncestralRolavel(el) {
+            let atual = el?.parentElement;
+            while (atual) {
+                const estilo = window.getComputedStyle(atual);
+                if (/(auto|scroll)/.test(estilo.overflowY)) return atual;
+                atual = atual.parentElement;
+            }
+            return null;
+        }
+
+        function BarraFerramentasEditor({ editor, extra }) {
             // Tiptap não é reativo por si só — escuta as transações do editor (toda
             // digitação, todo clique) e força um novo render, só pra manter os
             // botões (negrito ativo, etc.) e os estados de desfazer/refazer atualizados.
@@ -4025,24 +4085,58 @@ OAB nº ${advogadoOab}`;
                 return () => editor.off('transaction', atualizar);
             }, [editor]);
 
-            const grupos = criarComandosFormatacao(editor);
+            // Destaca a barra (sombra + fundo sólido) assim que ela "gruda" no
+            // topo da área rolável — sentinela de 1px logo acima dela: enquanto
+            // visível, a barra ainda não colou; quando sai da tela, colou.
+            const sentinelaRef = useRef(null);
+            const [presa, setPresa] = useState(false);
+            useEffect(() => {
+                if (!sentinelaRef.current) return;
+                const raiz = encontrarAncestralRolavel(sentinelaRef.current);
+                const observer = new IntersectionObserver(
+                    ([entrada]) => setPresa(!entrada.isIntersecting),
+                    { root: raiz, threshold: 0 },
+                );
+                observer.observe(sentinelaRef.current);
+                return () => observer.disconnect();
+            }, []);
+
+            const grupos = criarComandosFormatacao(editor).filter(g => g.length > 0);
             const separador = <div className="w-px h-5 bg-stone-200 mx-1"></div>;
+            const fonteAtual = editor.getAttributes('textStyle').fontFamily || '';
 
             return (
-                <div className="flex items-center gap-0.5 flex-wrap p-1.5 border-b border-stone-200 bg-stone-50 rounded-t-lg sticky top-0 z-10">
-                    {grupos.map((grupo, i) => (
-                        <React.Fragment key={i}>
-                            {i > 0 && separador}
-                            {grupo.map(cmd => (
-                                <BotaoFormatoEditor key={cmd.titulo} titulo={cmd.titulo} ativo={cmd.ativo} onClick={cmd.acao}>
-                                    {cmd.cor
-                                        ? <span className="w-3.5 h-3.5 rounded-full ring-1 ring-inset ring-black/10" style={{ background: cmd.cor }}></span>
-                                        : <i className={`fa-solid ${cmd.icone}`}></i>}
-                                </BotaoFormatoEditor>
-                            ))}
-                        </React.Fragment>
-                    ))}
-                </div>
+                <>
+                    <div ref={sentinelaRef} className="h-px"></div>
+                    <div className={`flex items-center gap-0.5 flex-wrap p-1.5 border-b rounded-t-lg sticky top-0 z-10 transition-shadow ${presa ? 'bg-white border-stone-200 shadow-md' : 'bg-stone-50 border-stone-200'}`}>
+                        <select
+                            title="Fonte"
+                            value={fonteAtual}
+                            onChange={(e) => {
+                                const valor = e.target.value;
+                                if (valor) editor.chain().focus().setFontFamily(valor).run();
+                                else editor.chain().focus().unsetFontFamily().run();
+                            }}
+                            className="h-8 px-2 rounded-lg text-xs border border-stone-200 bg-white text-stone-700 focus:outline-none focus:ring-2 focus:ring-amber-400"
+                        >
+                            {FONTES_EDITOR.map(f => <option key={f.valor} value={f.valor}>{f.rotulo}</option>)}
+                        </select>
+                        {separador}
+                        {grupos.map((grupo, i) => (
+                            <React.Fragment key={i}>
+                                {i > 0 && separador}
+                                {grupo.map(cmd => (
+                                    <BotaoFormatoEditor key={cmd.titulo} titulo={cmd.titulo} ativo={cmd.ativo} onClick={cmd.acao}>
+                                        {cmd.cor
+                                            ? <span className="w-3.5 h-3.5 rounded-full ring-1 ring-inset ring-black/10" style={{ background: cmd.cor }}></span>
+                                            : <i className={`fa-solid ${cmd.icone}`}></i>}
+                                    </BotaoFormatoEditor>
+                                ))}
+                            </React.Fragment>
+                        ))}
+                        {extra}
+                    </div>
+                </>
             );
         }
 
@@ -4055,13 +4149,19 @@ OAB nº ${advogadoOab}`;
             useEffect(() => {
                 const aoClicarFora = (e) => { if (ref.current && !ref.current.contains(e.target)) onClose(); };
                 const aoApertarTecla = (e) => { if (e.key === 'Escape') onClose(); };
+                // Fecha quando a PÁGINA rola por baixo do menu — mas rolar dentro do
+                // próprio menu (a lista de comandos, com overflow-y-auto) também
+                // dispara 'scroll' em fase de captura, e sem essa checagem o menu se
+                // fechava sozinho no primeiro pixel de rolagem, impedindo ver o resto
+                // da lista.
+                const aoRolar = (e) => { if (ref.current && ref.current.contains(e.target)) return; onClose(); };
                 document.addEventListener('mousedown', aoClicarFora);
                 document.addEventListener('keydown', aoApertarTecla);
-                window.addEventListener('scroll', onClose, true);
+                window.addEventListener('scroll', aoRolar, true);
                 return () => {
                     document.removeEventListener('mousedown', aoClicarFora);
                     document.removeEventListener('keydown', aoApertarTecla);
-                    window.removeEventListener('scroll', onClose, true);
+                    window.removeEventListener('scroll', aoRolar, true);
                 };
             }, [onClose]);
 
@@ -4074,7 +4174,7 @@ OAB nº ${advogadoOab}`;
                 top: Math.min(y, window.innerHeight - alturaMaxima - 8),
             };
 
-            const grupos = criarComandosFormatacao(editor);
+            const grupos = criarComandosFormatacao(editor).filter(g => g.length > 0);
 
             return (
                 <div
@@ -4114,7 +4214,142 @@ OAB nº ${advogadoOab}`;
         // título em maiúsculas de sempre) — a partir daí, o Tiptap é quem manda:
         // toda edição sai como HTML de verdade (onChangeHtml) e como texto puro
         // (onChangeTexto, só pra manter "Copiar" simples).
-        function EditorPecaTiptap({ htmlInicial, onChangeHtml, onChangeTexto, largo }) {
+        // Assistente de IA livre dentro do editor — pega o trecho selecionado (ou
+        // o documento inteiro, se nada estiver selecionado) e manda pra
+        // criar-peca-ia com a tarefa 'assistente_editor', que decide sozinha se o
+        // pedido é uma edição (devolve o texto pronto pra substituir) ou uma
+        // pergunta (responde direto). Conta na mesma cota gratuita mensal de
+        // qualquer outra geração — não é um caminho separado/ilimitado.
+        function AssistenteEditorPanel({ editor, supabaseClient }) {
+            const [aberto, setAberto] = useState(false);
+            const [instrucoes, setInstrucoes] = useState('');
+            const [carregando, setCarregando] = useState(false);
+            const [resposta, setResposta] = useState(null); // { texto, aviso, haviaSelecao, range } | null
+            const [erro, setErro] = useState(null);
+            const ref = useRef(null);
+
+            useEffect(() => {
+                if (!aberto) return;
+                const aoClicarFora = (e) => { if (ref.current && !ref.current.contains(e.target)) setAberto(false); };
+                document.addEventListener('mousedown', aoClicarFora);
+                return () => document.removeEventListener('mousedown', aoClicarFora);
+            }, [aberto]);
+
+            const abrir = () => {
+                setResposta(null);
+                setErro(null);
+                setAberto(true);
+            };
+
+            const capturarTexto = () => {
+                const { from, to } = editor.state.selection;
+                if (from !== to) {
+                    return { texto: editor.state.doc.textBetween(from, to, '\n\n'), haviaSelecao: true, range: { from, to } };
+                }
+                return { texto: editor.getText(), haviaSelecao: false, range: null };
+            };
+
+            const perguntar = async (e) => {
+                e.preventDefault();
+                if (!instrucoes.trim()) return;
+                setCarregando(true);
+                setErro(null);
+                setResposta(null);
+                const { texto: textoBase, haviaSelecao, range } = capturarTexto();
+                try {
+                    const { apiKey, provedor } = await resolverProvedorIA();
+                    const { data, error } = await invocarFunction(supabaseClient, 'criar-peca-ia', {
+                        body: {
+                            tarefa: 'assistente_editor',
+                            contexto: { textoAtual: textoBase, instrucoes: instrucoes.trim() },
+                            apiKey: apiKey || undefined,
+                            provedor: provedor || undefined,
+                        },
+                    });
+                    if (error) throw error;
+                    if (data?.error) { setErro(data.error); return; }
+                    const linhaAviso = (data.texto || '').split('\n').find(l => l.includes('SUGESTÃO GERADA POR IA'));
+                    const textoLimpo = linhaAviso ? data.texto.replace(linhaAviso, '').trim() : data.texto;
+                    setResposta({ texto: textoLimpo, aviso: linhaAviso, haviaSelecao, range });
+                } catch (err) {
+                    setErro(err.message || 'Não foi possível consultar a IA agora.');
+                } finally {
+                    setCarregando(false);
+                }
+            };
+
+            const aplicarNoDocumento = () => {
+                if (!resposta) return;
+                const paragrafos = resposta.texto.split(/\n{2,}/).map(p => `<p>${escaparHtml(p).replace(/\n/g, '<br/>')}</p>`).join('');
+                if (resposta.haviaSelecao && resposta.range) {
+                    editor.chain().focus().insertContentAt(resposta.range, paragrafos).run();
+                } else {
+                    editor.chain().focus().insertContentAt(editor.state.selection.from, paragrafos).run();
+                }
+                setAberto(false);
+                setInstrucoes('');
+                setResposta(null);
+            };
+
+            return (
+                <div ref={ref} className="relative ml-auto">
+                    <button
+                        type="button"
+                        onClick={() => (aberto ? setAberto(false) : abrir())}
+                        className="h-8 px-3 flex items-center gap-1.5 rounded-lg text-xs font-semibold bg-indigo-600 hover:bg-indigo-700 text-white"
+                    >
+                        <i className="fa-solid fa-robot"></i> Assistente IA
+                    </button>
+                    {aberto && (
+                        <div className="absolute right-0 top-9 z-20 w-80 bg-white rounded-xl shadow-2xl border border-stone-200 p-3 space-y-2.5">
+                            <p className="text-[11px] text-stone-400">
+                                {editor.state.selection.from !== editor.state.selection.to
+                                    ? 'Vai usar o trecho selecionado.'
+                                    : 'Nada selecionado — vai considerar o documento inteiro.'}
+                            </p>
+                            <form onSubmit={perguntar} className="space-y-2">
+                                <textarea
+                                    value={instrucoes}
+                                    onChange={e => setInstrucoes(e.target.value)}
+                                    rows={3}
+                                    placeholder="Ex: resuma este trecho em 3 frases / deixe o tom mais formal / explique o que este parágrafo significa..."
+                                    className="w-full p-2 bg-stone-50 border border-stone-200 rounded-lg text-xs focus:outline-none focus:ring-2 focus:ring-indigo-400"
+                                />
+                                <button
+                                    type="submit"
+                                    disabled={carregando || !instrucoes.trim()}
+                                    className="w-full py-1.5 bg-indigo-600 hover:bg-indigo-700 disabled:opacity-50 text-white font-semibold rounded-lg text-xs flex items-center justify-center gap-2"
+                                >
+                                    {carregando ? <i className="fa-solid fa-spinner fa-spin"></i> : <i className="fa-solid fa-paper-plane"></i>} Perguntar
+                                </button>
+                            </form>
+
+                            {erro && <div className="p-2 bg-rose-50 text-rose-700 rounded-lg text-[11px] border border-rose-200">{erro}</div>}
+
+                            {resposta && (
+                                <div className="space-y-2 pt-2 border-t border-stone-200">
+                                    <div className="max-h-48 overflow-y-auto p-2 bg-stone-50 rounded-lg text-xs text-stone-700 whitespace-pre-line">{resposta.texto}</div>
+                                    <div className="flex gap-1.5">
+                                        <button onClick={aplicarNoDocumento} className="flex-1 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white font-semibold rounded-lg text-[11px]">
+                                            {resposta.haviaSelecao ? 'Substituir seleção' : 'Inserir no cursor'}
+                                        </button>
+                                        <button
+                                            type="button"
+                                            onClick={() => { navigator.clipboard?.writeText(resposta.texto); }}
+                                            className="px-2.5 py-1.5 bg-stone-100 hover:bg-stone-200 text-stone-600 rounded-lg text-[11px]"
+                                        >
+                                            <i className="fa-solid fa-copy"></i>
+                                        </button>
+                                    </div>
+                                </div>
+                            )}
+                        </div>
+                    )}
+                </div>
+            );
+        }
+
+        function EditorPecaTiptap({ htmlInicial, onChangeHtml, onChangeTexto, largo, supabaseClient }) {
             const [editor, setEditor] = useState(null);
             const [erroCarregamento, setErroCarregamento] = useState(null);
             const [menuContexto, setMenuContexto] = useState(null); // { x, y } | null
@@ -4157,7 +4392,7 @@ OAB nº ${advogadoOab}`;
 
             return (
                 <div className={`${largo ? 'max-w-5xl' : 'max-w-3xl'} mx-auto bg-white rounded-lg shadow-[0_1px_4px_rgba(15,23,42,0.08)] border border-stone-200 overflow-hidden`}>
-                    {editor ? <BarraFerramentasEditor editor={editor} /> : (
+                    {editor ? <BarraFerramentasEditor editor={editor} extra={<AssistenteEditorPanel editor={editor} supabaseClient={supabaseClient} />} /> : (
                         <div className="p-1.5 border-b border-stone-200 bg-stone-50 text-[11px] text-stone-400 flex items-center gap-2">
                             <i className="fa-solid fa-spinner fa-spin"></i> Carregando editor...
                         </div>
@@ -4185,7 +4420,7 @@ OAB nº ${advogadoOab}`;
         // Jurisprudência fica de fora daqui de propósito — vai num painel à
         // esquerda (junto dos Parâmetros), não embaixo da página do documento. Ver
         // PainelJurisprudenciaLateral em CriacaoPecasIAView.
-        function PecaGeradaViewer({ texto, onChangeHtml, onChangeTexto, editado, largo }) {
+        function PecaGeradaViewer({ texto, onChangeHtml, onChangeTexto, editado, largo, supabaseClient }) {
             if (!texto) return null;
             const linhaAviso = texto.split('\n').find(l => l.includes('MINUTA GERADA POR IA') || l.includes('SUGESTÃO GERADA POR IA'));
             const textoSemAviso = linhaAviso ? texto.replace(linhaAviso, '').replace(/\n{3,}/g, '\n\n').trim() : texto;
@@ -4204,6 +4439,7 @@ OAB nº ${advogadoOab}`;
                         onChangeHtml={onChangeHtml}
                         onChangeTexto={onChangeTexto}
                         largo={largo}
+                        supabaseClient={supabaseClient}
                     />
                     <p className={`${larguraAviso} mx-auto text-[11px] text-stone-400 flex items-center gap-1.5`}>
                         <i className="fa-solid fa-pen"></i> Use a barra acima ou clique com o botão direito pra formatar — negrito, títulos, listas, tabela, marca-texto, citação e caixas de destaque (atenção, prazo, importante, definição).
@@ -4496,7 +4732,7 @@ OAB nº ${advogadoOab}`;
                                     </div>
                                 )}
                                 {!loading && resultado && (
-                                    <PecaGeradaViewer key={geracaoId} texto={resultado.texto} onChangeHtml={alterarHtml} onChangeTexto={alterarTexto} editado={editado} largo={expandido} />
+                                    <PecaGeradaViewer key={geracaoId} texto={resultado.texto} onChangeHtml={alterarHtml} onChangeTexto={alterarTexto} editado={editado} largo={expandido} supabaseClient={supabaseClient} />
                                 )}
                             </div>
                         </div>
