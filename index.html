@@ -138,6 +138,76 @@
         .dark input, .dark select, .dark textarea { color-scheme: dark; }
         .dark ::-webkit-scrollbar-track { background: #1e293b; }
         .dark ::-webkit-scrollbar-thumb { background: #475569; }
+
+        /* --- Editor de Peças: legal design / visual law ---
+           Estilos do conteúdo dentro do editor Tiptap (ver EditorPecaTiptap e
+           criarNoCaixaDestaque). Escopado em .jc-editor-peca .ProseMirror pra não
+           vazar pro resto do app — o container recebe .jc-editor-peca e o Tiptap
+           anexa .ProseMirror como filho dele. */
+
+        /* Caixa de destaque: bloco colorido com rótulo fixo (ícone + texto real
+           no DOM, não CSS gerado — ver comentário em criarNoCaixaDestaque sobre o
+           motivo). Cores fixas por tipo, iguais claro/escuro só trocando o tom. */
+        .jc-editor-peca .ProseMirror .jc-callout {
+            margin: 1.25rem 0;
+            padding: 0.875rem 1.125rem;
+            border-radius: 0.75rem;
+            border: 1px solid;
+        }
+        .jc-editor-peca .ProseMirror .jc-callout-titulo {
+            font-size: 0.7rem;
+            font-weight: 700;
+            letter-spacing: 0.04em;
+            margin-bottom: 0.5rem;
+            cursor: default;
+        }
+        .jc-editor-peca .ProseMirror .jc-callout-corpo > *:last-child { margin-bottom: 0; }
+        .jc-editor-peca .ProseMirror .jc-callout-atencao { background: #fffbeb; border-color: #fde68a; }
+        .jc-editor-peca .ProseMirror .jc-callout-atencao .jc-callout-titulo { color: #b45309; }
+        .jc-editor-peca .ProseMirror .jc-callout-prazo { background: #fff1f2; border-color: #fecdd3; }
+        .jc-editor-peca .ProseMirror .jc-callout-prazo .jc-callout-titulo { color: #be123c; }
+        .jc-editor-peca .ProseMirror .jc-callout-importante { background: #eff6ff; border-color: #bfdbfe; }
+        .jc-editor-peca .ProseMirror .jc-callout-importante .jc-callout-titulo { color: #1d4ed8; }
+        .jc-editor-peca .ProseMirror .jc-callout-definicao { background: #eef2ff; border-color: #c7d2fe; }
+        .jc-editor-peca .ProseMirror .jc-callout-definicao .jc-callout-titulo { color: #4338ca; }
+        .dark .jc-editor-peca .ProseMirror .jc-callout-atencao { background: #451a03; border-color: #92400e; }
+        .dark .jc-editor-peca .ProseMirror .jc-callout-atencao .jc-callout-titulo { color: #fbbf24; }
+        .dark .jc-editor-peca .ProseMirror .jc-callout-prazo { background: #4c0519; border-color: #9f1239; }
+        .dark .jc-editor-peca .ProseMirror .jc-callout-prazo .jc-callout-titulo { color: #fb7185; }
+        .dark .jc-editor-peca .ProseMirror .jc-callout-importante { background: #172554; border-color: #1d4ed8; }
+        .dark .jc-editor-peca .ProseMirror .jc-callout-importante .jc-callout-titulo { color: #60a5fa; }
+        .dark .jc-editor-peca .ProseMirror .jc-callout-definicao { background: #1e1b4b; border-color: #4338ca; }
+        .dark .jc-editor-peca .ProseMirror .jc-callout-definicao .jc-callout-titulo { color: #818cf8; }
+
+        /* Citação: distingue trechos de jurisprudência/lei citados no corpo da
+           peça, sem depender de aspas digitadas à mão. */
+        .jc-editor-peca .ProseMirror blockquote {
+            margin: 1.25rem 0;
+            padding: 0.125rem 0 0.125rem 1rem;
+            border-left: 3px solid #a5b4fc;
+            font-style: italic;
+            color: #57534e;
+        }
+        .dark .jc-editor-peca .ProseMirror blockquote { border-left-color: #4338ca; color: #cbd5e1; }
+
+        /* Marca-texto: força texto escuro mesmo sob cores claras — a extensão do
+           Tiptap gera "color: inherit" inline, então precisa de !important pra
+           vencer (senão o texto vira ilegível no modo escuro). */
+        .jc-editor-peca .ProseMirror mark {
+            border-radius: 0.2em;
+            padding: 0.05em 0.15em;
+            color: #1c1917 !important;
+        }
+
+        /* Lista de verificação: caixa de seleção real, não marcador de lista —
+           pra requisitos/pedidos que dá pra ir riscando durante a revisão. */
+        .jc-editor-peca .ProseMirror ul[data-type="taskList"] { list-style: none; padding-left: 0; }
+        .jc-editor-peca .ProseMirror ul[data-type="taskList"] li { display: flex; align-items: flex-start; gap: 0.5rem; }
+        .jc-editor-peca .ProseMirror ul[data-type="taskList"] li > label { margin-top: 0.2rem; }
+        .jc-editor-peca .ProseMirror ul[data-type="taskList"] input[type="checkbox"] { accent-color: #f59e0b; width: 1rem; height: 1rem; }
+        .jc-editor-peca .ProseMirror ul[data-type="taskList"] li > div { flex: 1; }
+        .jc-editor-peca .ProseMirror ul[data-type="taskList"] li[data-checked="true"] > div { color: #a8a29e; text-decoration: line-through; }
+        .dark .jc-editor-peca .ProseMirror ul[data-type="taskList"] li[data-checked="true"] > div { color: #64748b; }
     </style>
 </head>
 <body class="bg-stone-50 text-stone-800 antialiased selection:bg-amber-500 selection:text-white dark:bg-navy-950 dark:text-stone-200">
@@ -395,8 +465,61 @@
             }
             return _modulosCarregados[especificador];
         }
+
+        // --- Caixas de destaque (legal design / visual law) ---
+        // Bloco visual colorido com ícone fixo, pra separar prazo/atenção/definição
+        // do corpo corrido do texto — quem lê a peça bate o olho e já sabe a
+        // natureza da informação sem ler o parágrafo inteiro. Cores e rótulos são
+        // fixos (não é uma paleta livre) de propósito: mantém as peças
+        // reconhecíveis entre usuários diferentes, igual um padrão de sinalização.
+        // Usada tanto pelo node do Tiptap (rótulo dentro da caixa) quanto pelos
+        // comandos da barra/menu (ícone do botão que insere) — uma fonte só.
+        const TIPOS_CAIXA_DESTAQUE = {
+            atencao: { rotulo: '⚠️ ATENÇÃO', icone: 'fa-triangle-exclamation', titulo: 'Caixa: Atenção' },
+            prazo: { rotulo: '⏰ PRAZO', icone: 'fa-clock', titulo: 'Caixa: Prazo' },
+            importante: { rotulo: '📌 IMPORTANTE', icone: 'fa-thumbtack', titulo: 'Caixa: Importante' },
+            definicao: { rotulo: '📖 DEFINIÇÃO', icone: 'fa-book', titulo: 'Caixa: Definição' },
+        };
+        // Node custom do Tiptap pra caixa de destaque. O rótulo (ícone + texto) é
+        // renderizado como um <div> real dentro do HTML, não via CSS ::before —
+        // de propósito, pra sobreviver fora do editor: cópia de texto puro
+        // (onChangeTexto/getText), exportação pra Word e qualquer reabertura do
+        // HTML salvo continuam mostrando "⚠️ ATENÇÃO" mesmo sem o CSS do app.
+        // O conteúdo editável fica isolado em .jc-callout-corpo (contentElement no
+        // parseHTML) pra esse rótulo nunca ser tratado como parte do texto editável.
+        function criarNoCaixaDestaque(Node, mergeAttributes) {
+            return Node.create({
+                name: 'caixaDestaque',
+                group: 'block',
+                content: 'block+',
+                defining: true,
+                addAttributes() {
+                    return {
+                        tipo: {
+                            default: 'importante',
+                            parseHTML: el => el.getAttribute('data-tipo') || 'importante',
+                            renderHTML: attrs => ({ 'data-tipo': attrs.tipo }),
+                        },
+                    };
+                },
+                parseHTML() {
+                    return [{ tag: 'div[data-caixa-destaque]', contentElement: 'div.jc-callout-corpo' }];
+                },
+                renderHTML({ HTMLAttributes, node }) {
+                    const info = TIPOS_CAIXA_DESTAQUE[node.attrs.tipo] || TIPOS_CAIXA_DESTAQUE.importante;
+                    return ['div', mergeAttributes(HTMLAttributes, {
+                        'data-caixa-destaque': '',
+                        class: `jc-callout jc-callout-${node.attrs.tipo}`,
+                    }),
+                        ['div', { class: 'jc-callout-titulo', contenteditable: 'false' }, info.rotulo],
+                        ['div', { class: 'jc-callout-corpo' }, 0],
+                    ];
+                },
+            });
+        }
+
         async function carregarTiptap() {
-            const [core, starterKit, underline, tableMod, textAlign] = await Promise.all([
+            const [core, starterKit, underline, tableMod, textAlign, highlightMod, taskListMod, taskItemMod] = await Promise.all([
                 importarModulo(`@tiptap/core@${TIPTAP_VERSAO}`),
                 importarModulo(`@tiptap/starter-kit@${TIPTAP_VERSAO}`),
                 importarModulo(`@tiptap/extension-underline@${TIPTAP_VERSAO}`),
@@ -404,6 +527,11 @@
                 // testado ao vivo (o pacote não tem export default, só nomeado).
                 importarModulo(`@tiptap/extension-table@${TIPTAP_VERSAO}`),
                 importarModulo(`@tiptap/extension-text-align@${TIPTAP_VERSAO}`),
+                // Marca-texto multicor (marcador de texto de verdade, não só negrito).
+                importarModulo(`@tiptap/extension-highlight@${TIPTAP_VERSAO}`),
+                // Lista de verificação — requisitos/pedidos que dá pra ir riscando.
+                importarModulo(`@tiptap/extension-task-list@${TIPTAP_VERSAO}`),
+                importarModulo(`@tiptap/extension-task-item@${TIPTAP_VERSAO}`),
             ]);
             return {
                 Editor: core.Editor,
@@ -412,6 +540,10 @@
                     underline.default,
                     tableMod.TableKit.configure({ table: { resizable: false } }),
                     textAlign.default.configure({ types: ['paragraph', 'heading'] }),
+                    highlightMod.default.configure({ multicolor: true }),
+                    taskListMod.default,
+                    taskItemMod.default.configure({ nested: true }),
+                    criarNoCaixaDestaque(core.Node, core.mergeAttributes),
                 ],
             };
         }
@@ -448,6 +580,11 @@
                 h3 { font-weight: bold; margin: 16pt 0 8pt 0; }
                 table { border-collapse: collapse; width: 100%; }
                 td, th { border: 1px solid #999; padding: 4pt 6pt; }
+                mark { background: #fef08a; }
+                blockquote { margin: 8pt 0; padding-left: 10pt; border-left: 2pt solid #999; font-style: italic; }
+                div[data-caixa-destaque] { margin: 10pt 0; padding: 8pt 10pt; border: 1pt solid #999; }
+                .jc-callout-titulo { font-weight: bold; font-size: 9pt; margin-bottom: 4pt; }
+                ul[data-type="taskList"] { list-style: none; padding-left: 0; }
             </style></head><body>${linhasHtml}</body></html>`;
             const blob = window.htmlDocx.asBlob(htmlCompleto);
             const url = URL.createObjectURL(blob);
@@ -3821,11 +3958,46 @@ OAB nº ${advogadoOab}`;
                 { titulo: 'Itálico', icone: 'fa-italic', ativo: editor.isActive('italic'), acao: () => editor.chain().focus().toggleItalic().run() },
                 { titulo: 'Sublinhado', icone: 'fa-underline', ativo: editor.isActive('underline'), acao: () => editor.chain().focus().toggleUnderline().run() },
             ];
+            // Marca-texto: mesmo princípio do marcador físico em papel — aponta
+            // trechos relevantes sem alterar o conteúdo. Cores fixas (não é um
+            // seletor livre) de propósito, pelo mesmo motivo das caixas de
+            // destaque abaixo: consistência visual entre peças/usuários. Cada
+            // botão mostra a própria cor (não um ícone), pra já ser o preview.
+            const CORES_MARCA_TEXTO = [
+                { titulo: 'Marcar em amarelo', cor: '#fde68a' },
+                { titulo: 'Marcar em verde', cor: '#bbf7d0' },
+                { titulo: 'Marcar em azul', cor: '#bfdbfe' },
+                { titulo: 'Marcar em rosa', cor: '#fbcfe8' },
+            ];
+            const grupoMarcaTexto = [
+                ...CORES_MARCA_TEXTO.map(c => ({
+                    titulo: c.titulo,
+                    cor: c.cor,
+                    ativo: editor.isActive('highlight', { color: c.cor }),
+                    acao: () => editor.chain().focus().toggleHighlight({ color: c.cor }).run(),
+                })),
+                { titulo: 'Remover marca-texto', icone: 'fa-eraser', acao: () => editor.chain().focus().unsetHighlight().run() },
+            ];
             const grupoEstrutura = [
                 { titulo: 'Título de seção', icone: 'fa-heading', ativo: editor.isActive('heading', { level: 3 }), acao: () => editor.chain().focus().toggleHeading({ level: 3 }).run() },
                 { titulo: 'Lista com marcadores', icone: 'fa-list-ul', ativo: editor.isActive('bulletList'), acao: () => editor.chain().focus().toggleBulletList().run() },
                 { titulo: 'Lista numerada', icone: 'fa-list-ol', ativo: editor.isActive('orderedList'), acao: () => editor.chain().focus().toggleOrderedList().run() },
+                { titulo: 'Lista de verificação', icone: 'fa-list-check', ativo: editor.isActive('taskList'), acao: () => editor.chain().focus().toggleTaskList().run() },
+                { titulo: 'Citação', icone: 'fa-quote-left', ativo: editor.isActive('blockquote'), acao: () => editor.chain().focus().toggleBlockquote().run() },
             ];
+            // Caixas de destaque: o núcleo do "legal design" no editor — ver
+            // TIPOS_CAIXA_DESTAQUE e criarNoCaixaDestaque, lá em cima. Cada botão
+            // insere a caixa já com o tipo certo (sem seletor à parte); pra trocar
+            // o tipo depois, apaga e insere de novo.
+            const grupoDestaque = Object.entries(TIPOS_CAIXA_DESTAQUE).map(([tipo, info]) => ({
+                titulo: info.titulo,
+                icone: info.icone,
+                acao: () => editor.chain().focus().insertContent({
+                    type: 'caixaDestaque',
+                    attrs: { tipo },
+                    content: [{ type: 'paragraph' }],
+                }).run(),
+            }));
             const grupoAlinhamento = [
                 { titulo: 'Alinhar à esquerda', icone: 'fa-align-left', ativo: editor.isActive({ textAlign: 'left' }), acao: () => editor.chain().focus().setTextAlign('left').run() },
                 { titulo: 'Centralizar', icone: 'fa-align-center', ativo: editor.isActive({ textAlign: 'center' }), acao: () => editor.chain().focus().setTextAlign('center').run() },
@@ -3839,7 +4011,7 @@ OAB nº ${advogadoOab}`;
                 { titulo: 'Desfazer', icone: 'fa-rotate-left', acao: () => editor.chain().focus().undo().run() },
                 { titulo: 'Refazer', icone: 'fa-rotate-right', acao: () => editor.chain().focus().redo().run() },
             ];
-            return [grupoTexto, grupoEstrutura, grupoAlinhamento, grupoInserir, grupoHistorico];
+            return [grupoTexto, grupoMarcaTexto, grupoEstrutura, grupoDestaque, grupoAlinhamento, grupoInserir, grupoHistorico];
         }
 
         function BarraFerramentasEditor({ editor }) {
@@ -3863,7 +4035,9 @@ OAB nº ${advogadoOab}`;
                             {i > 0 && separador}
                             {grupo.map(cmd => (
                                 <BotaoFormatoEditor key={cmd.titulo} titulo={cmd.titulo} ativo={cmd.ativo} onClick={cmd.acao}>
-                                    <i className={`fa-solid ${cmd.icone}`}></i>
+                                    {cmd.cor
+                                        ? <span className="w-3.5 h-3.5 rounded-full ring-1 ring-inset ring-black/10" style={{ background: cmd.cor }}></span>
+                                        : <i className={`fa-solid ${cmd.icone}`}></i>}
                                 </BotaoFormatoEditor>
                             ))}
                         </React.Fragment>
@@ -3892,9 +4066,12 @@ OAB nº ${advogadoOab}`;
             }, [onClose]);
 
             // Evita o menu nascer pra fora da tela quando o clique é perto da borda.
+            // A lista de comandos cresceu (marca-texto, caixas de destaque, etc.),
+            // então o menu agora rola (max-h + overflow) em vez de estourar a tela.
+            const alturaMaxima = Math.min(420, window.innerHeight - 24);
             const estilo = {
                 left: Math.min(x, window.innerWidth - 200),
-                top: Math.min(y, window.innerHeight - 260),
+                top: Math.min(y, window.innerHeight - alturaMaxima - 8),
             };
 
             const grupos = criarComandosFormatacao(editor);
@@ -3902,8 +4079,8 @@ OAB nº ${advogadoOab}`;
             return (
                 <div
                     ref={ref}
-                    style={estilo}
-                    className="fixed z-50 w-48 bg-white rounded-xl shadow-2xl border border-stone-200 py-1.5"
+                    style={{ ...estilo, maxHeight: alturaMaxima }}
+                    className="fixed z-50 w-48 bg-white rounded-xl shadow-2xl border border-stone-200 py-1.5 overflow-y-auto"
                 >
                     {grupos.map((grupo, i) => (
                         <React.Fragment key={i}>
@@ -3916,7 +4093,10 @@ OAB nº ${advogadoOab}`;
                                     onClick={() => { cmd.acao(); onClose(); }}
                                     className={`w-full flex items-center gap-2.5 px-3 py-1.5 text-xs text-left transition ${cmd.ativo ? 'text-amber-700 font-semibold bg-amber-50' : 'text-stone-700 hover:bg-stone-50'}`}
                                 >
-                                    <i className={`fa-solid ${cmd.icone} w-4 text-center`}></i> {cmd.titulo}
+                                    {cmd.cor
+                                        ? <span className="w-3.5 h-3.5 rounded-full ring-1 ring-inset ring-black/10 flex-shrink-0" style={{ background: cmd.cor }}></span>
+                                        : <i className={`fa-solid ${cmd.icone} w-4 text-center`}></i>}
+                                    {cmd.titulo}
                                 </button>
                             ))}
                         </React.Fragment>
@@ -3926,7 +4106,9 @@ OAB nº ${advogadoOab}`;
         }
 
         // Editor de verdade (Tiptap): substitui o antigo contentEditable cru por
-        // negrito/itálico/sublinhado/títulos/listas/tabela de verdade, mantendo o
+        // negrito/itálico/sublinhado/títulos/listas/tabela de verdade — mais
+        // marca-texto, citação, lista de verificação e caixas de destaque
+        // (legal design / visual law: ver TIPOS_CAIXA_DESTAQUE) — mantendo o
         // visual de "página" branca. O conteúdo inicial (htmlInicial) é montado uma
         // única vez a partir do texto puro que a IA devolveu (mesma heurística de
         // título em maiúsculas de sempre) — a partir daí, o Tiptap é quem manda:
@@ -4024,7 +4206,7 @@ OAB nº ${advogadoOab}`;
                         largo={largo}
                     />
                     <p className={`${larguraAviso} mx-auto text-[11px] text-stone-400 flex items-center gap-1.5`}>
-                        <i className="fa-solid fa-pen"></i> Use a barra acima ou clique com o botão direito pra formatar — negrito, títulos, listas, tabela.
+                        <i className="fa-solid fa-pen"></i> Use a barra acima ou clique com o botão direito pra formatar — negrito, títulos, listas, tabela, marca-texto, citação e caixas de destaque (atenção, prazo, importante, definição).
                         {editado && <span className="text-emerald-600 font-semibold">Editado manualmente.</span>}
                     </p>
                 </div>
@@ -4532,7 +4714,7 @@ OAB nº ${advogadoOab}`;
                 }
                 if (data?.liberado) {
                     setAtivo(true);
-                    setResultado({ tipo: 'sucesso', texto: 'Modo avançado ativado nesta sessão. Ainda não há nenhuma funcionalidade adicional.' });
+                    setResultado({ tipo: 'sucesso', texto: 'Modo avançado ativado nesta sessão.' });
                 } else {
                     setAtivo(false);
                     setResultado({ tipo: 'erro', texto: data?.motivo || 'Não autorizado.' });
@@ -4575,6 +4757,187 @@ OAB nº ${advogadoOab}`;
                         {ativando ? <i className="fa-solid fa-spinner fa-spin"></i> : <i className="fa-solid fa-user-shield"></i>}
                         {ativo ? 'Verificar novamente' : 'Ativar modo avançado'}
                     </button>
+
+                    {ativo && <PainelFeedbackRecebido supabaseClient={supabaseClient} />}
+                </div>
+            );
+        }
+
+        // Só visível na conta da Camila por enquanto — a trava de verdade não é
+        // essa checagem de e-mail no front (é só o que decide se o card aparece),
+        // é a policy de INSERT do feedback_usuario (só grava em nome de quem
+        // está logado). Sem risco de segurança em deixar a checagem simples
+        // aqui: não é um recurso privilegiado, é só um formulário.
+        const EMAIL_AVALIADORA = 'gomesnunes.camila@gmail.com';
+
+        function AvaliadorCamilaCard({ session, supabaseClient }) {
+            const [tipo, setTipo] = useState('sugestao');
+            const [nota, setNota] = useState(0);
+            const [mensagem, setMensagem] = useState('');
+            const [enviando, setEnviando] = useState(false);
+            const [resultado, setResultado] = useState(null);
+            const [enviados, setEnviados] = useState(null);
+
+            const carregarEnviados = () => {
+                supabaseClient
+                    .from('feedback_usuario')
+                    .select('id, tipo, nota, mensagem, criado_em')
+                    .order('criado_em', { ascending: false })
+                    .then(({ data, error }) => { if (!error) setEnviados(data || []); });
+            };
+
+            useEffect(carregarEnviados, []);
+
+            const enviar = async (e) => {
+                e.preventDefault();
+                if (!mensagem.trim()) { setResultado({ tipo: 'erro', texto: 'Escreva sua mensagem antes de enviar.' }); return; }
+                setEnviando(true);
+                setResultado(null);
+                const { error } = await supabaseClient.from('feedback_usuario').insert({
+                    user_id: session.user.id,
+                    autor_nome: session.user.user_metadata?.nome || null,
+                    tipo,
+                    nota: tipo === 'avaliacao' && nota > 0 ? nota : null,
+                    mensagem: mensagem.trim(),
+                });
+                setEnviando(false);
+                if (error) {
+                    setResultado({ tipo: 'erro', texto: error.message || 'Não foi possível enviar agora.' });
+                } else {
+                    setResultado({ tipo: 'sucesso', texto: 'Enviado! Obrigado pelo retorno.' });
+                    setMensagem('');
+                    setNota(0);
+                    carregarEnviados();
+                }
+            };
+
+            const ROTULOS_TIPO = { critica: 'Crítica', sugestao: 'Sugestão', avaliacao: 'Avaliação' };
+
+            return (
+                <div className="bg-white rounded-2xl border border-stone-200 shadow-sm p-5 space-y-4">
+                    <div>
+                        <h3 className="font-bold text-stone-900 text-sm flex items-center gap-2">
+                            <i className="fa-solid fa-comment-dots text-indigo-500"></i> Enviar crítica, sugestão ou avaliação
+                        </h3>
+                        <p className="text-stone-500 text-xs mt-0.5">Vai direto pra quem administra o JurisControl — pode escrever livremente, positivo ou negativo.</p>
+                    </div>
+
+                    {resultado && (
+                        <div className={`p-3 rounded-xl text-xs font-medium ${resultado.tipo === 'sucesso' ? 'bg-emerald-50 text-emerald-700 border border-emerald-200' : 'bg-rose-50 text-rose-700 border border-rose-200'}`}>
+                            {resultado.texto}
+                        </div>
+                    )}
+
+                    <form onSubmit={enviar} className="space-y-3">
+                        <div className="flex gap-2">
+                            {Object.entries(ROTULOS_TIPO).map(([valor, rotulo]) => (
+                                <button
+                                    key={valor}
+                                    type="button"
+                                    onClick={() => setTipo(valor)}
+                                    className={`px-3 py-1.5 rounded-lg text-xs font-semibold ${tipo === valor ? 'bg-indigo-600 text-white' : 'bg-stone-100 text-stone-600 hover:bg-stone-200'}`}
+                                >
+                                    {rotulo}
+                                </button>
+                            ))}
+                        </div>
+
+                        {tipo === 'avaliacao' && (
+                            <div className="flex items-center gap-1">
+                                {[1, 2, 3, 4, 5].map(n => (
+                                    <button key={n} type="button" onClick={() => setNota(n)} className="text-xl leading-none">
+                                        <i className={`fa-solid fa-star ${n <= nota ? 'text-amber-500' : 'text-stone-200'}`}></i>
+                                    </button>
+                                ))}
+                            </div>
+                        )}
+
+                        <textarea
+                            value={mensagem}
+                            onChange={e => setMensagem(e.target.value)}
+                            rows={4}
+                            placeholder="Escreva aqui..."
+                            className="w-full p-2.5 bg-stone-50 border border-stone-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-amber-500"
+                        />
+
+                        <button
+                            type="submit"
+                            disabled={enviando}
+                            className="px-4 py-2 bg-indigo-600 hover:bg-indigo-700 disabled:opacity-50 text-white font-semibold rounded-xl text-sm flex items-center gap-2"
+                        >
+                            {enviando ? <i className="fa-solid fa-spinner fa-spin"></i> : <i className="fa-solid fa-paper-plane"></i>} Enviar
+                        </button>
+                    </form>
+
+                    {enviados && enviados.length > 0 && (
+                        <div className="pt-3 border-t border-stone-200 space-y-2">
+                            <p className="text-[11px] font-bold text-stone-400 uppercase">Já enviados</p>
+                            {enviados.map(f => (
+                                <div key={f.id} className="p-2.5 bg-stone-50 rounded-lg text-xs text-stone-600">
+                                    <span className="font-semibold text-stone-800">{ROTULOS_TIPO[f.tipo]}</span>
+                                    {f.nota && <span className="text-amber-500 ml-1">{'★'.repeat(f.nota)}</span>}
+                                    <span className="text-stone-400 ml-2">{new Date(f.criado_em).toLocaleDateString('pt-BR')}</span>
+                                    <p className="mt-0.5">{f.mensagem}</p>
+                                </div>
+                            ))}
+                        </div>
+                    )}
+                </div>
+            );
+        }
+
+        // Só aparece pra quem já ativou o modo avançado (role admin + lista
+        // oculta + MFA, ver ModoAvancadoCard) — lê todo feedback via a policy
+        // "administrador ve todo feedback" (checa app_metadata.role direto no
+        // JWT, sem precisar de Edge Function pra isso).
+        function PainelFeedbackRecebido({ supabaseClient }) {
+            const [feedback, setFeedback] = useState(null);
+
+            const carregar = () => {
+                supabaseClient
+                    .from('feedback_usuario')
+                    .select('id, autor_nome, tipo, nota, mensagem, lido, criado_em')
+                    .order('criado_em', { ascending: false })
+                    .then(({ data, error }) => { if (!error) setFeedback(data || []); });
+            };
+
+            useEffect(carregar, []);
+
+            const marcarLido = (id) => {
+                supabaseClient.from('feedback_usuario').update({ lido: true }).eq('id', id).then(() => carregar());
+            };
+
+            const ROTULOS_TIPO = { critica: 'Crítica', sugestao: 'Sugestão', avaliacao: 'Avaliação' };
+
+            return (
+                <div className="pt-4 border-t border-stone-200 space-y-3">
+                    <h4 className="font-bold text-stone-900 text-sm flex items-center gap-2">
+                        <i className="fa-solid fa-inbox text-indigo-500"></i> Críticas, sugestões e avaliações recebidas
+                        {feedback && feedback.some(f => !f.lido) && (
+                            <span className="text-[10px] font-bold px-1.5 py-0.5 rounded-full bg-rose-100 text-rose-700">{feedback.filter(f => !f.lido).length} não lida(s)</span>
+                        )}
+                    </h4>
+
+                    {feedback === null && <p className="text-xs text-stone-400"><i className="fa-solid fa-spinner fa-spin mr-2"></i>Carregando...</p>}
+                    {feedback && feedback.length === 0 && <p className="text-xs text-stone-400">Nenhum feedback recebido ainda.</p>}
+
+                    <div className="space-y-2 max-h-96 overflow-y-auto">
+                        {(feedback || []).map(f => (
+                            <div key={f.id} className={`p-3 rounded-xl text-xs border ${f.lido ? 'bg-stone-50 border-stone-200' : 'bg-indigo-50 border-indigo-200'}`}>
+                                <div className="flex items-center justify-between gap-2">
+                                    <span className="font-bold text-stone-800">{ROTULOS_TIPO[f.tipo]}{f.nota ? ` — ${'★'.repeat(f.nota)}` : ''}</span>
+                                    <span className="text-stone-400">{new Date(f.criado_em).toLocaleString('pt-BR')}</span>
+                                </div>
+                                <p className="text-stone-500 mt-0.5">{f.autor_nome || 'Sem nome'}</p>
+                                <p className="mt-1.5 text-stone-700">{f.mensagem}</p>
+                                {!f.lido && (
+                                    <button onClick={() => marcarLido(f.id)} className="mt-2 text-[11px] font-semibold text-indigo-600 hover:underline">
+                                        Marcar como lido
+                                    </button>
+                                )}
+                            </div>
+                        ))}
+                    </div>
                 </div>
             );
         }
@@ -4623,6 +4986,10 @@ OAB nº ${advogadoOab}`;
 
                     {session?.user?.app_metadata?.role === 'admin' && (
                         <ModoAvancadoCard session={session} supabaseClient={supabaseClient} />
+                    )}
+
+                    {session?.user?.email?.toLowerCase() === EMAIL_AVALIADORA && (
+                        <AvaliadorCamilaCard session={session} supabaseClient={supabaseClient} />
                     )}
 
                     <div className="bg-white rounded-2xl border border-stone-200 shadow-sm p-5 space-y-4">
