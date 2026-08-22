@@ -118,6 +118,33 @@
             .print-only { display: block !important; }
         }
 
+        /* --- Impressão da minuta em A4 (Criação de Peças) ---
+           Truque de "imprimir só isto": em vez de tentar esconder cada pedaço
+           da SPA (sidebar, barra de ferramentas, etc.) individualmente, esconde
+           TUDO via visibility (não display — isso preservaria o layout) e só
+           revela de volta o container de impressão, que aí sim vira position:
+           absolute na página. Funciona não importa onde o container esteja
+           aninhado na árvore React. O @page em si (tamanho A4, margem,
+           cabeçalho/rodapé/numeração) é gerado dinamicamente por
+           imprimirPeca(), porque o texto do cabeçalho/rodapé vem do banco —
+           ver <style id="jc-print-style-peca"> injetado ali. */
+        .jc-print-container {
+            position: fixed;
+            left: -9999px;
+            top: 0;
+        }
+        @media print {
+            body.jc-imprimindo-peca * { visibility: hidden !important; }
+            body.jc-imprimindo-peca .jc-print-container,
+            body.jc-imprimindo-peca .jc-print-container * { visibility: visible !important; }
+            body.jc-imprimindo-peca .jc-print-container {
+                position: absolute;
+                left: 0;
+                top: 0;
+                width: 100%;
+            }
+        }
+
         /* Modo escuro — sobrescreve por nome as classes utilitárias do Tailwind já
            usadas nas dezenas de telas do app (cards brancos, textos/bordas em tons
            neutros). Retrofit pragmático: um bloco CSS contido em vez de reescrever
@@ -141,12 +168,12 @@
 
         /* --- Editor de Peças: legal design / visual law ---
            Estilos do conteúdo dentro do editor Tiptap (ver EditorPecaTiptap e
-           criarNoCaixaDestaque). Escopado em .jc-editor-peca .ProseMirror pra não
+           criarNosCaixaDestaque). Escopado em .jc-editor-peca .ProseMirror pra não
            vazar pro resto do app — o container recebe .jc-editor-peca e o Tiptap
            anexa .ProseMirror como filho dele. */
 
-        /* Caixa de destaque: bloco colorido com rótulo fixo (ícone + texto real
-           no DOM, não CSS gerado — ver comentário em criarNoCaixaDestaque sobre o
+        /* Caixa de destaque: bloco colorido com rótulo editável (ícone + texto real
+           no DOM, não CSS gerado — ver comentário em criarNosCaixaDestaque sobre o
            motivo). Cores fixas por tipo, iguais claro/escuro só trocando o tom. */
         .jc-editor-peca .ProseMirror .jc-callout {
             margin: 1.25rem 0;
@@ -159,7 +186,7 @@
             font-weight: 700;
             letter-spacing: 0.04em;
             margin-bottom: 0.5rem;
-            cursor: default;
+            outline: none;
         }
         .jc-editor-peca .ProseMirror .jc-callout-corpo > *:last-child { margin-bottom: 0; }
         .jc-editor-peca .ProseMirror .jc-callout-atencao { background: #fffbeb; border-color: #fde68a; }
@@ -480,19 +507,39 @@
             importante: { rotulo: '📌 IMPORTANTE', icone: 'fa-thumbtack', titulo: 'Caixa: Importante' },
             definicao: { rotulo: '📖 DEFINIÇÃO', icone: 'fa-book', titulo: 'Caixa: Definição' },
         };
-        // Node custom do Tiptap pra caixa de destaque. O rótulo (ícone + texto) é
-        // renderizado como um <div> real dentro do HTML, não via CSS ::before —
-        // de propósito, pra sobreviver fora do editor: cópia de texto puro
-        // (onChangeTexto/getText), exportação pra Word e qualquer reabertura do
-        // HTML salvo continuam mostrando "⚠️ ATENÇÃO" mesmo sem o CSS do app.
-        // O conteúdo editável fica isolado em .jc-callout-corpo (contentElement no
-        // parseHTML) pra esse rótulo nunca ser tratado como parte do texto editável.
-        function criarNoCaixaDestaque(Node, mergeAttributes) {
-            return Node.create({
+        // Três nodes custom do Tiptap pra caixa de destaque — título (texto livre,
+        // editável, semeado com o rótulo padrão tipo "⚠️ ATENÇÃO" mas o usuário pode
+        // reescrever) e corpo (block+), dentro de um node "caixa" que só aceita
+        // exatamente essa dupla. Título editável de propósito (era fixo/travado
+        // antes — pedido explícito: dá pra renomear pra "ATENÇÃO — PRAZO FATAL",
+        // por exemplo, sem perder o estilo da caixa).
+        function criarNosCaixaDestaque(Node, mergeAttributes) {
+            const Titulo = Node.create({
+                name: 'caixaDestaqueTitulo',
+                content: 'inline*',
+                parseHTML() {
+                    return [{ tag: 'div.jc-callout-titulo' }];
+                },
+                renderHTML({ HTMLAttributes }) {
+                    return ['div', mergeAttributes(HTMLAttributes, { class: 'jc-callout-titulo' }), 0];
+                },
+            });
+            const Corpo = Node.create({
+                name: 'caixaDestaqueCorpo',
+                content: 'block+',
+                parseHTML() {
+                    return [{ tag: 'div.jc-callout-corpo' }];
+                },
+                renderHTML({ HTMLAttributes }) {
+                    return ['div', mergeAttributes(HTMLAttributes, { class: 'jc-callout-corpo' }), 0];
+                },
+            });
+            const Caixa = Node.create({
                 name: 'caixaDestaque',
                 group: 'block',
-                content: 'block+',
+                content: 'caixaDestaqueTitulo caixaDestaqueCorpo',
                 defining: true,
+                isolating: true,
                 addAttributes() {
                     return {
                         tipo: {
@@ -503,23 +550,29 @@
                     };
                 },
                 parseHTML() {
-                    return [{ tag: 'div[data-caixa-destaque]', contentElement: 'div.jc-callout-corpo' }];
+                    return [{ tag: 'div[data-caixa-destaque]' }];
                 },
                 renderHTML({ HTMLAttributes, node }) {
-                    const info = TIPOS_CAIXA_DESTAQUE[node.attrs.tipo] || TIPOS_CAIXA_DESTAQUE.importante;
                     return ['div', mergeAttributes(HTMLAttributes, {
                         'data-caixa-destaque': '',
                         class: `jc-callout jc-callout-${node.attrs.tipo}`,
-                    }),
-                        ['div', { class: 'jc-callout-titulo', contenteditable: 'false' }, info.rotulo],
-                        ['div', { class: 'jc-callout-corpo' }, 0],
-                    ];
+                    }), 0];
                 },
             });
+            return [Titulo, Corpo, Caixa];
         }
 
+        // Fontes disponíveis pro seletor da barra — a do próprio site (Inter,
+        // vazio = não força nada, cai no CSS normal) e Times New Roman (a
+        // clássica de petição/documento jurídico impresso). Lista central pra
+        // não duplicar entre o <select> e o texto de exibição.
+        const FONTES_EDITOR = [
+            { rotulo: 'Padrão do site', valor: '' },
+            { rotulo: 'Times New Roman', valor: '"Times New Roman", Times, serif' },
+        ];
+
         async function carregarTiptap() {
-            const [core, starterKit, underline, tableMod, textAlign, highlightMod, taskListMod, taskItemMod] = await Promise.all([
+            const [core, starterKit, underline, tableMod, textAlign, highlightMod, taskListMod, taskItemMod, textStyleMod] = await Promise.all([
                 importarModulo(`@tiptap/core@${TIPTAP_VERSAO}`),
                 importarModulo(`@tiptap/starter-kit@${TIPTAP_VERSAO}`),
                 importarModulo(`@tiptap/extension-underline@${TIPTAP_VERSAO}`),
@@ -532,6 +585,9 @@
                 // Lista de verificação — requisitos/pedidos que dá pra ir riscando.
                 importarModulo(`@tiptap/extension-task-list@${TIPTAP_VERSAO}`),
                 importarModulo(`@tiptap/extension-task-item@${TIPTAP_VERSAO}`),
+                // TextStyleKit já inclui FontFamily (fonte por trecho selecionado) —
+                // testado ao vivo (não tem export default, só TextStyleKit nomeado).
+                importarModulo(`@tiptap/extension-text-style@${TIPTAP_VERSAO}`),
             ]);
             return {
                 Editor: core.Editor,
@@ -543,7 +599,8 @@
                     highlightMod.default.configure({ multicolor: true }),
                     taskListMod.default,
                     taskItemMod.default.configure({ nested: true }),
-                    criarNoCaixaDestaque(core.Node, core.mergeAttributes),
+                    textStyleMod.TextStyleKit,
+                    ...criarNosCaixaDestaque(core.Node, core.mergeAttributes),
                 ],
             };
         }
@@ -3986,16 +4043,21 @@ OAB nº ${advogadoOab}`;
                 { titulo: 'Citação', icone: 'fa-quote-left', ativo: editor.isActive('blockquote'), acao: () => editor.chain().focus().toggleBlockquote().run() },
             ];
             // Caixas de destaque: o núcleo do "legal design" no editor — ver
-            // TIPOS_CAIXA_DESTAQUE e criarNoCaixaDestaque, lá em cima. Cada botão
-            // insere a caixa já com o tipo certo (sem seletor à parte); pra trocar
-            // o tipo depois, apaga e insere de novo.
+            // TIPOS_CAIXA_DESTAQUE e criarNosCaixaDestaque, lá em cima. Cada botão
+            // insere a caixa já com o tipo certo e o rótulo padrão pronto no
+            // título — que agora é editável (dá pra reescrever, ex: "ATENÇÃO —
+            // PRAZO FATAL"); pra trocar o TIPO (cor/ícone) depois, apaga e insere
+            // de novo.
             const grupoDestaque = Object.entries(TIPOS_CAIXA_DESTAQUE).map(([tipo, info]) => ({
                 titulo: info.titulo,
                 icone: info.icone,
                 acao: () => editor.chain().focus().insertContent({
                     type: 'caixaDestaque',
                     attrs: { tipo },
-                    content: [{ type: 'paragraph' }],
+                    content: [
+                        { type: 'caixaDestaqueTitulo', content: [{ type: 'text', text: info.rotulo }] },
+                        { type: 'caixaDestaqueCorpo', content: [{ type: 'paragraph' }] },
+                    ],
                 }).run(),
             }));
             const grupoAlinhamento = [
@@ -4007,14 +4069,39 @@ OAB nº ${advogadoOab}`;
             const grupoInserir = [
                 { titulo: 'Inserir tabela 3x3', icone: 'fa-table', acao: () => editor.chain().focus().insertTable({ rows: 3, cols: 3, withHeaderRow: true }).run() },
             ];
+            // Só aparece com o cursor dentro de uma tabela — o resto do tempo essas
+            // ações não fazem sentido (e o Tiptap nem executa fora de uma tabela).
+            const grupoTabela = editor.isActive('table') ? [
+                { titulo: 'Adicionar linha acima', icone: 'fa-plus', acao: () => editor.chain().focus().addRowBefore().run() },
+                { titulo: 'Adicionar linha abaixo', icone: 'fa-plus', acao: () => editor.chain().focus().addRowAfter().run() },
+                { titulo: 'Remover linha', icone: 'fa-trash-can', acao: () => editor.chain().focus().deleteRow().run() },
+                { titulo: 'Adicionar coluna à esquerda', icone: 'fa-plus', acao: () => editor.chain().focus().addColumnBefore().run() },
+                { titulo: 'Adicionar coluna à direita', icone: 'fa-plus', acao: () => editor.chain().focus().addColumnAfter().run() },
+                { titulo: 'Remover coluna', icone: 'fa-trash-can', acao: () => editor.chain().focus().deleteColumn().run() },
+                { titulo: 'Remover tabela', icone: 'fa-table', acao: () => editor.chain().focus().deleteTable().run() },
+            ] : [];
             const grupoHistorico = [
                 { titulo: 'Desfazer', icone: 'fa-rotate-left', acao: () => editor.chain().focus().undo().run() },
                 { titulo: 'Refazer', icone: 'fa-rotate-right', acao: () => editor.chain().focus().redo().run() },
             ];
-            return [grupoTexto, grupoMarcaTexto, grupoEstrutura, grupoDestaque, grupoAlinhamento, grupoInserir, grupoHistorico];
+            return [grupoTexto, grupoMarcaTexto, grupoEstrutura, grupoDestaque, grupoAlinhamento, grupoInserir, grupoTabela, grupoHistorico];
         }
 
-        function BarraFerramentasEditor({ editor }) {
+        // Procura o ancestral com scroll de verdade (overflow-y auto/scroll) —
+        // a barra fica sticky dentro dele, não da janela, então é ele que
+        // precisa ser a "raiz" do IntersectionObserver abaixo pra detectar
+        // corretamente quando a barra grudou no topo.
+        function encontrarAncestralRolavel(el) {
+            let atual = el?.parentElement;
+            while (atual) {
+                const estilo = window.getComputedStyle(atual);
+                if (/(auto|scroll)/.test(estilo.overflowY)) return atual;
+                atual = atual.parentElement;
+            }
+            return null;
+        }
+
+        function BarraFerramentasEditor({ editor, extra }) {
             // Tiptap não é reativo por si só — escuta as transações do editor (toda
             // digitação, todo clique) e força um novo render, só pra manter os
             // botões (negrito ativo, etc.) e os estados de desfazer/refazer atualizados.
@@ -4025,24 +4112,58 @@ OAB nº ${advogadoOab}`;
                 return () => editor.off('transaction', atualizar);
             }, [editor]);
 
-            const grupos = criarComandosFormatacao(editor);
+            // Destaca a barra (sombra + fundo sólido) assim que ela "gruda" no
+            // topo da área rolável — sentinela de 1px logo acima dela: enquanto
+            // visível, a barra ainda não colou; quando sai da tela, colou.
+            const sentinelaRef = useRef(null);
+            const [presa, setPresa] = useState(false);
+            useEffect(() => {
+                if (!sentinelaRef.current) return;
+                const raiz = encontrarAncestralRolavel(sentinelaRef.current);
+                const observer = new IntersectionObserver(
+                    ([entrada]) => setPresa(!entrada.isIntersecting),
+                    { root: raiz, threshold: 0 },
+                );
+                observer.observe(sentinelaRef.current);
+                return () => observer.disconnect();
+            }, []);
+
+            const grupos = criarComandosFormatacao(editor).filter(g => g.length > 0);
             const separador = <div className="w-px h-5 bg-stone-200 mx-1"></div>;
+            const fonteAtual = editor.getAttributes('textStyle').fontFamily || '';
 
             return (
-                <div className="flex items-center gap-0.5 flex-wrap p-1.5 border-b border-stone-200 bg-stone-50 rounded-t-lg sticky top-0 z-10">
-                    {grupos.map((grupo, i) => (
-                        <React.Fragment key={i}>
-                            {i > 0 && separador}
-                            {grupo.map(cmd => (
-                                <BotaoFormatoEditor key={cmd.titulo} titulo={cmd.titulo} ativo={cmd.ativo} onClick={cmd.acao}>
-                                    {cmd.cor
-                                        ? <span className="w-3.5 h-3.5 rounded-full ring-1 ring-inset ring-black/10" style={{ background: cmd.cor }}></span>
-                                        : <i className={`fa-solid ${cmd.icone}`}></i>}
-                                </BotaoFormatoEditor>
-                            ))}
-                        </React.Fragment>
-                    ))}
-                </div>
+                <>
+                    <div ref={sentinelaRef} className="h-px"></div>
+                    <div className={`flex items-center gap-0.5 flex-wrap p-1.5 border-b rounded-t-lg sticky top-0 z-10 transition-shadow ${presa ? 'bg-white border-stone-200 shadow-md' : 'bg-stone-50 border-stone-200'}`}>
+                        <select
+                            title="Fonte"
+                            value={fonteAtual}
+                            onChange={(e) => {
+                                const valor = e.target.value;
+                                if (valor) editor.chain().focus().setFontFamily(valor).run();
+                                else editor.chain().focus().unsetFontFamily().run();
+                            }}
+                            className="h-8 px-2 rounded-lg text-xs border border-stone-200 bg-white text-stone-700 focus:outline-none focus:ring-2 focus:ring-amber-400"
+                        >
+                            {FONTES_EDITOR.map(f => <option key={f.valor} value={f.valor}>{f.rotulo}</option>)}
+                        </select>
+                        {separador}
+                        {grupos.map((grupo, i) => (
+                            <React.Fragment key={i}>
+                                {i > 0 && separador}
+                                {grupo.map(cmd => (
+                                    <BotaoFormatoEditor key={cmd.titulo} titulo={cmd.titulo} ativo={cmd.ativo} onClick={cmd.acao}>
+                                        {cmd.cor
+                                            ? <span className="w-3.5 h-3.5 rounded-full ring-1 ring-inset ring-black/10" style={{ background: cmd.cor }}></span>
+                                            : <i className={`fa-solid ${cmd.icone}`}></i>}
+                                    </BotaoFormatoEditor>
+                                ))}
+                            </React.Fragment>
+                        ))}
+                        {extra}
+                    </div>
+                </>
             );
         }
 
@@ -4055,13 +4176,19 @@ OAB nº ${advogadoOab}`;
             useEffect(() => {
                 const aoClicarFora = (e) => { if (ref.current && !ref.current.contains(e.target)) onClose(); };
                 const aoApertarTecla = (e) => { if (e.key === 'Escape') onClose(); };
+                // Fecha quando a PÁGINA rola por baixo do menu — mas rolar dentro do
+                // próprio menu (a lista de comandos, com overflow-y-auto) também
+                // dispara 'scroll' em fase de captura, e sem essa checagem o menu se
+                // fechava sozinho no primeiro pixel de rolagem, impedindo ver o resto
+                // da lista.
+                const aoRolar = (e) => { if (ref.current && ref.current.contains(e.target)) return; onClose(); };
                 document.addEventListener('mousedown', aoClicarFora);
                 document.addEventListener('keydown', aoApertarTecla);
-                window.addEventListener('scroll', onClose, true);
+                window.addEventListener('scroll', aoRolar, true);
                 return () => {
                     document.removeEventListener('mousedown', aoClicarFora);
                     document.removeEventListener('keydown', aoApertarTecla);
-                    window.removeEventListener('scroll', onClose, true);
+                    window.removeEventListener('scroll', aoRolar, true);
                 };
             }, [onClose]);
 
@@ -4074,7 +4201,7 @@ OAB nº ${advogadoOab}`;
                 top: Math.min(y, window.innerHeight - alturaMaxima - 8),
             };
 
-            const grupos = criarComandosFormatacao(editor);
+            const grupos = criarComandosFormatacao(editor).filter(g => g.length > 0);
 
             return (
                 <div
@@ -4114,7 +4241,142 @@ OAB nº ${advogadoOab}`;
         // título em maiúsculas de sempre) — a partir daí, o Tiptap é quem manda:
         // toda edição sai como HTML de verdade (onChangeHtml) e como texto puro
         // (onChangeTexto, só pra manter "Copiar" simples).
-        function EditorPecaTiptap({ htmlInicial, onChangeHtml, onChangeTexto, largo }) {
+        // Assistente de IA livre dentro do editor — pega o trecho selecionado (ou
+        // o documento inteiro, se nada estiver selecionado) e manda pra
+        // criar-peca-ia com a tarefa 'assistente_editor', que decide sozinha se o
+        // pedido é uma edição (devolve o texto pronto pra substituir) ou uma
+        // pergunta (responde direto). Conta na mesma cota gratuita mensal de
+        // qualquer outra geração — não é um caminho separado/ilimitado.
+        function AssistenteEditorPanel({ editor, supabaseClient }) {
+            const [aberto, setAberto] = useState(false);
+            const [instrucoes, setInstrucoes] = useState('');
+            const [carregando, setCarregando] = useState(false);
+            const [resposta, setResposta] = useState(null); // { texto, aviso, haviaSelecao, range } | null
+            const [erro, setErro] = useState(null);
+            const ref = useRef(null);
+
+            useEffect(() => {
+                if (!aberto) return;
+                const aoClicarFora = (e) => { if (ref.current && !ref.current.contains(e.target)) setAberto(false); };
+                document.addEventListener('mousedown', aoClicarFora);
+                return () => document.removeEventListener('mousedown', aoClicarFora);
+            }, [aberto]);
+
+            const abrir = () => {
+                setResposta(null);
+                setErro(null);
+                setAberto(true);
+            };
+
+            const capturarTexto = () => {
+                const { from, to } = editor.state.selection;
+                if (from !== to) {
+                    return { texto: editor.state.doc.textBetween(from, to, '\n\n'), haviaSelecao: true, range: { from, to } };
+                }
+                return { texto: editor.getText(), haviaSelecao: false, range: null };
+            };
+
+            const perguntar = async (e) => {
+                e.preventDefault();
+                if (!instrucoes.trim()) return;
+                setCarregando(true);
+                setErro(null);
+                setResposta(null);
+                const { texto: textoBase, haviaSelecao, range } = capturarTexto();
+                try {
+                    const { apiKey, provedor } = await resolverProvedorIA();
+                    const { data, error } = await invocarFunction(supabaseClient, 'criar-peca-ia', {
+                        body: {
+                            tarefa: 'assistente_editor',
+                            contexto: { textoAtual: textoBase, instrucoes: instrucoes.trim() },
+                            apiKey: apiKey || undefined,
+                            provedor: provedor || undefined,
+                        },
+                    });
+                    if (error) throw error;
+                    if (data?.error) { setErro(data.error); return; }
+                    const linhaAviso = (data.texto || '').split('\n').find(l => l.includes('SUGESTÃO GERADA POR IA'));
+                    const textoLimpo = linhaAviso ? data.texto.replace(linhaAviso, '').trim() : data.texto;
+                    setResposta({ texto: textoLimpo, aviso: linhaAviso, haviaSelecao, range });
+                } catch (err) {
+                    setErro(err.message || 'Não foi possível consultar a IA agora.');
+                } finally {
+                    setCarregando(false);
+                }
+            };
+
+            const aplicarNoDocumento = () => {
+                if (!resposta) return;
+                const paragrafos = resposta.texto.split(/\n{2,}/).map(p => `<p>${escaparHtml(p).replace(/\n/g, '<br/>')}</p>`).join('');
+                if (resposta.haviaSelecao && resposta.range) {
+                    editor.chain().focus().insertContentAt(resposta.range, paragrafos).run();
+                } else {
+                    editor.chain().focus().insertContentAt(editor.state.selection.from, paragrafos).run();
+                }
+                setAberto(false);
+                setInstrucoes('');
+                setResposta(null);
+            };
+
+            return (
+                <div ref={ref} className="relative ml-auto">
+                    <button
+                        type="button"
+                        onClick={() => (aberto ? setAberto(false) : abrir())}
+                        className="h-8 px-3 flex items-center gap-1.5 rounded-lg text-xs font-semibold bg-indigo-600 hover:bg-indigo-700 text-white"
+                    >
+                        <i className="fa-solid fa-robot"></i> Assistente IA
+                    </button>
+                    {aberto && (
+                        <div className="absolute right-0 top-9 z-20 w-80 bg-white rounded-xl shadow-2xl border border-stone-200 p-3 space-y-2.5">
+                            <p className="text-[11px] text-stone-400">
+                                {editor.state.selection.from !== editor.state.selection.to
+                                    ? 'Vai usar o trecho selecionado.'
+                                    : 'Nada selecionado — vai considerar o documento inteiro.'}
+                            </p>
+                            <form onSubmit={perguntar} className="space-y-2">
+                                <textarea
+                                    value={instrucoes}
+                                    onChange={e => setInstrucoes(e.target.value)}
+                                    rows={3}
+                                    placeholder="Ex: resuma este trecho em 3 frases / deixe o tom mais formal / explique o que este parágrafo significa..."
+                                    className="w-full p-2 bg-stone-50 border border-stone-200 rounded-lg text-xs focus:outline-none focus:ring-2 focus:ring-indigo-400"
+                                />
+                                <button
+                                    type="submit"
+                                    disabled={carregando || !instrucoes.trim()}
+                                    className="w-full py-1.5 bg-indigo-600 hover:bg-indigo-700 disabled:opacity-50 text-white font-semibold rounded-lg text-xs flex items-center justify-center gap-2"
+                                >
+                                    {carregando ? <i className="fa-solid fa-spinner fa-spin"></i> : <i className="fa-solid fa-paper-plane"></i>} Perguntar
+                                </button>
+                            </form>
+
+                            {erro && <div className="p-2 bg-rose-50 text-rose-700 rounded-lg text-[11px] border border-rose-200">{erro}</div>}
+
+                            {resposta && (
+                                <div className="space-y-2 pt-2 border-t border-stone-200">
+                                    <div className="max-h-48 overflow-y-auto p-2 bg-stone-50 rounded-lg text-xs text-stone-700 whitespace-pre-line">{resposta.texto}</div>
+                                    <div className="flex gap-1.5">
+                                        <button onClick={aplicarNoDocumento} className="flex-1 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white font-semibold rounded-lg text-[11px]">
+                                            {resposta.haviaSelecao ? 'Substituir seleção' : 'Inserir no cursor'}
+                                        </button>
+                                        <button
+                                            type="button"
+                                            onClick={() => { navigator.clipboard?.writeText(resposta.texto); }}
+                                            className="px-2.5 py-1.5 bg-stone-100 hover:bg-stone-200 text-stone-600 rounded-lg text-[11px]"
+                                        >
+                                            <i className="fa-solid fa-copy"></i>
+                                        </button>
+                                    </div>
+                                </div>
+                            )}
+                        </div>
+                    )}
+                </div>
+            );
+        }
+
+        function EditorPecaTiptap({ htmlInicial, onChangeHtml, onChangeTexto, largo, supabaseClient, configDocumento }) {
             const [editor, setEditor] = useState(null);
             const [erroCarregamento, setErroCarregamento] = useState(null);
             const [menuContexto, setMenuContexto] = useState(null); // { x, y } | null
@@ -4156,8 +4418,9 @@ OAB nº ${advogadoOab}`;
             }
 
             return (
-                <div className={`${largo ? 'max-w-5xl' : 'max-w-3xl'} mx-auto bg-white rounded-lg shadow-[0_1px_4px_rgba(15,23,42,0.08)] border border-stone-200 overflow-hidden`}>
-                    {editor ? <BarraFerramentasEditor editor={editor} /> : (
+                <div className="w-[21cm] max-w-full mx-auto bg-white rounded-lg shadow-[0_1px_4px_rgba(15,23,42,0.08)] border border-stone-200 overflow-hidden">
+                    <FaixaLayoutPagina config={configDocumento} posicao="cabecalho" />
+                    {editor ? <BarraFerramentasEditor editor={editor} extra={<AssistenteEditorPanel editor={editor} supabaseClient={supabaseClient} />} /> : (
                         <div className="p-1.5 border-b border-stone-200 bg-stone-50 text-[11px] text-stone-400 flex items-center gap-2">
                             <i className="fa-solid fa-spinner fa-spin"></i> Carregando editor...
                         </div>
@@ -4169,11 +4432,12 @@ OAB nº ${advogadoOab}`;
                             e.preventDefault();
                             setMenuContexto({ x: e.clientX, y: e.clientY });
                         }}
-                        className="p-8 md:p-12 min-h-[500px] jc-editor-peca [&_.ProseMirror]:outline-none [&_.ProseMirror_h3]:font-bold [&_.ProseMirror_h3]:text-stone-900 [&_.ProseMirror_h3]:mt-6 [&_.ProseMirror_h3]:mb-2 [&_.ProseMirror_h3]:text-base [&_.ProseMirror_p]:mb-4 [&_.ProseMirror_p]:leading-relaxed [&_.ProseMirror_table]:border-collapse [&_.ProseMirror_table]:w-full [&_.ProseMirror_td]:border [&_.ProseMirror_td]:border-stone-300 [&_.ProseMirror_td]:p-2 [&_.ProseMirror_th]:border [&_.ProseMirror_th]:border-stone-300 [&_.ProseMirror_th]:p-2 [&_.ProseMirror_th]:bg-stone-50"
+                        className="p-[2.5cm] min-h-[500px] jc-editor-peca [&_.ProseMirror]:outline-none [&_.ProseMirror_h3]:font-bold [&_.ProseMirror_h3]:text-stone-900 [&_.ProseMirror_h3]:mt-6 [&_.ProseMirror_h3]:mb-2 [&_.ProseMirror_h3]:text-base [&_.ProseMirror_p]:mb-4 [&_.ProseMirror_p]:leading-relaxed [&_.ProseMirror_table]:border-collapse [&_.ProseMirror_table]:w-full [&_.ProseMirror_td]:border [&_.ProseMirror_td]:border-stone-300 [&_.ProseMirror_td]:p-2 [&_.ProseMirror_th]:border [&_.ProseMirror_th]:border-stone-300 [&_.ProseMirror_th]:p-2 [&_.ProseMirror_th]:bg-stone-50"
                     />
                     {menuContexto && editor && (
                         <MenuContextualEditor editor={editor} x={menuContexto.x} y={menuContexto.y} onClose={() => setMenuContexto(null)} />
                     )}
+                    <FaixaLayoutPagina config={configDocumento} posicao="rodape" />
                 </div>
             );
         }
@@ -4185,11 +4449,11 @@ OAB nº ${advogadoOab}`;
         // Jurisprudência fica de fora daqui de propósito — vai num painel à
         // esquerda (junto dos Parâmetros), não embaixo da página do documento. Ver
         // PainelJurisprudenciaLateral em CriacaoPecasIAView.
-        function PecaGeradaViewer({ texto, onChangeHtml, onChangeTexto, editado, largo }) {
+        function PecaGeradaViewer({ texto, onChangeHtml, onChangeTexto, editado, largo, supabaseClient, configDocumento }) {
             if (!texto) return null;
             const linhaAviso = texto.split('\n').find(l => l.includes('MINUTA GERADA POR IA') || l.includes('SUGESTÃO GERADA POR IA'));
             const textoSemAviso = linhaAviso ? texto.replace(linhaAviso, '').replace(/\n{3,}/g, '\n\n').trim() : texto;
-            const larguraAviso = largo ? 'max-w-5xl' : 'max-w-3xl';
+            const larguraAviso = 'w-[21cm] max-w-full';
 
             return (
                 <div className="space-y-4">
@@ -4204,6 +4468,8 @@ OAB nº ${advogadoOab}`;
                         onChangeHtml={onChangeHtml}
                         onChangeTexto={onChangeTexto}
                         largo={largo}
+                        supabaseClient={supabaseClient}
+                        configDocumento={configDocumento}
                     />
                     <p className={`${larguraAviso} mx-auto text-[11px] text-stone-400 flex items-center gap-1.5`}>
                         <i className="fa-solid fa-pen"></i> Use a barra acima ou clique com o botão direito pra formatar — negrito, títulos, listas, tabela, marca-texto, citação e caixas de destaque (atenção, prazo, importante, definição).
@@ -4272,6 +4538,196 @@ OAB nº ${advogadoOab}`;
             );
         }
 
+        // Converte uma imagem (por URL, inclusive signed URL do Storage) em data
+        // URI base64 — necessário pra exportação Word: html-docx-js só embute
+        // imagens assim, não aceita URL remota (testado/documentado).
+        async function converterImagemParaDataUri(url) {
+            const resposta = await fetch(url);
+            const blob = await resposta.blob();
+            return new Promise((resolve, reject) => {
+                const leitor = new FileReader();
+                leitor.onload = () => resolve(leitor.result);
+                leitor.onerror = reject;
+                leitor.readAsDataURL(blob);
+            });
+        }
+
+        // Layout de página (cabeçalho, rodapé, logotipo do escritório) — um único
+        // "modelo" salvo por conta, reaplicado em qualquer peça daqui pra frente
+        // (não é conteúdo de uma peça específica). Só o painel de configuração
+        // fica atrás do modo expandido (pedido explícito — "menu expandido"); uma
+        // vez salvo, o cabeçalho/rodapé/logo aparecem na página normalmente.
+        function PainelLayoutPagina({ session, supabaseClient, configAtual, onSalvo, onClose }) {
+            const [aba, setAba] = useState('cabecalho'); // 'cabecalho' | 'rodape' | 'logo'
+            const [cabecalho, setCabecalho] = useState(configAtual?.cabecalho || '');
+            const [rodape, setRodape] = useState(configAtual?.rodape || '');
+            const [logoPath, setLogoPath] = useState(configAtual?.logoPath || null);
+            const [logoUrlPreview, setLogoUrlPreview] = useState(configAtual?.logoUrl || null);
+            const [enviandoLogo, setEnviandoLogo] = useState(false);
+            const [salvando, setSalvando] = useState(false);
+            const [mensagem, setMensagem] = useState(null);
+
+            const enviarLogo = async (e) => {
+                const arquivo = e.target.files?.[0];
+                if (!arquivo) return;
+                setEnviandoLogo(true);
+                setMensagem(null);
+                try {
+                    const extensao = (arquivo.name.match(/\.[^.]+$/) || ['.png'])[0];
+                    const caminho = `${session.user.id}/logo${extensao}`;
+                    const { error: erroUpload } = await supabaseClient.storage
+                        .from('logos-documento')
+                        .upload(caminho, arquivo, { upsert: true, contentType: arquivo.type });
+                    if (erroUpload) throw erroUpload;
+                    const { data: signed, error: erroSigned } = await supabaseClient.storage
+                        .from('logos-documento')
+                        .createSignedUrl(caminho, 3600);
+                    if (erroSigned) throw erroSigned;
+                    setLogoPath(caminho);
+                    setLogoUrlPreview(signed.signedUrl);
+                } catch (err) {
+                    setMensagem({ tipo: 'erro', texto: err.message || 'Não foi possível enviar o logotipo.' });
+                } finally {
+                    setEnviandoLogo(false);
+                    e.target.value = '';
+                }
+            };
+
+            const removerLogo = async () => {
+                if (logoPath) await supabaseClient.storage.from('logos-documento').remove([logoPath]).catch(() => {});
+                setLogoPath(null);
+                setLogoUrlPreview(null);
+            };
+
+            const salvar = async () => {
+                setSalvando(true);
+                setMensagem(null);
+                const { error } = await supabaseClient.from('configuracoes_documento').upsert({
+                    user_id: session.user.id,
+                    cabecalho: cabecalho.trim() || null,
+                    rodape: rodape.trim() || null,
+                    logo_url: logoPath,
+                    atualizado_em: new Date().toISOString(),
+                });
+                setSalvando(false);
+                if (error) {
+                    setMensagem({ tipo: 'erro', texto: error.message || 'Não foi possível salvar.' });
+                    return;
+                }
+                onSalvo({ cabecalho: cabecalho.trim(), rodape: rodape.trim(), logoPath, logoUrl: logoUrlPreview });
+                setMensagem({ tipo: 'sucesso', texto: 'Salvo — vale para qualquer peça daqui pra frente.' });
+            };
+
+            const ABAS = [
+                { id: 'cabecalho', rotulo: 'Cabeçalho', icone: 'fa-heading' },
+                { id: 'rodape', rotulo: 'Rodapé', icone: 'fa-shoe-prints' },
+                { id: 'logo', rotulo: 'Logotipo', icone: 'fa-image' },
+            ];
+
+            return (
+                <div className="fixed inset-0 bg-navy-900/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+                    <div className="bg-white rounded-2xl max-w-lg w-full shadow-2xl overflow-hidden">
+                        <div className="flex justify-between items-center border-b border-stone-200 px-5 py-4">
+                            <div>
+                                <h3 className="font-bold text-stone-900 text-sm">Layout de Página</h3>
+                                <p className="text-stone-400 text-[11px] mt-0.5">Cabeçalho, rodapé e logotipo — um modelo só, salvo pra sua conta, reaplicado em qualquer peça.</p>
+                            </div>
+                            <button onClick={onClose} className="text-stone-400 hover:text-stone-600"><i className="fa-solid fa-xmark text-lg"></i></button>
+                        </div>
+
+                        <div className="flex gap-1 px-5 pt-3 border-b border-stone-200">
+                            {ABAS.map(a => (
+                                <button
+                                    key={a.id}
+                                    onClick={() => setAba(a.id)}
+                                    className={`px-3 py-2 text-xs font-semibold rounded-t-lg flex items-center gap-1.5 ${aba === a.id ? 'bg-stone-100 text-stone-900 border-b-2 border-amber-500' : 'text-stone-500 hover:text-stone-800'}`}
+                                >
+                                    <i className={`fa-solid ${a.icone}`}></i> {a.rotulo}
+                                </button>
+                            ))}
+                        </div>
+
+                        <div className="p-5 space-y-3 min-h-[180px]">
+                            {mensagem && (
+                                <div className={`p-2.5 rounded-xl text-xs font-medium ${mensagem.tipo === 'sucesso' ? 'bg-emerald-50 text-emerald-700 border border-emerald-200' : 'bg-rose-50 text-rose-700 border border-rose-200'}`}>
+                                    {mensagem.texto}
+                                </div>
+                            )}
+
+                            {aba === 'cabecalho' && (
+                                <div>
+                                    <label className="block text-xs font-semibold text-stone-600 mb-1">Texto do cabeçalho</label>
+                                    <textarea
+                                        value={cabecalho}
+                                        onChange={e => setCabecalho(e.target.value)}
+                                        rows={3}
+                                        placeholder="Ex: Escritório Fulano de Tal Advocacia — OAB/RJ 12.345"
+                                        className="w-full p-2.5 bg-stone-50 border border-stone-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-amber-500"
+                                    />
+                                </div>
+                            )}
+
+                            {aba === 'rodape' && (
+                                <div>
+                                    <label className="block text-xs font-semibold text-stone-600 mb-1">Texto do rodapé</label>
+                                    <textarea
+                                        value={rodape}
+                                        onChange={e => setRodape(e.target.value)}
+                                        rows={3}
+                                        placeholder="Ex: Rua Exemplo, 123 — Rio de Janeiro/RJ — contato@escritorio.adv.br"
+                                        className="w-full p-2.5 bg-stone-50 border border-stone-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-amber-500"
+                                    />
+                                </div>
+                            )}
+
+                            {aba === 'logo' && (
+                                <div className="space-y-3">
+                                    {logoUrlPreview ? (
+                                        <div className="flex items-center gap-3">
+                                            <img src={logoUrlPreview} alt="Logotipo" className="h-16 max-w-[160px] object-contain border border-stone-200 rounded-lg p-1" />
+                                            <button onClick={removerLogo} className="text-xs font-semibold text-rose-600 hover:text-rose-800">Remover</button>
+                                        </div>
+                                    ) : (
+                                        <p className="text-xs text-stone-400">Nenhum logotipo enviado ainda.</p>
+                                    )}
+                                    <div>
+                                        <label className="inline-flex items-center gap-2 px-3 py-2 bg-stone-100 hover:bg-stone-200 text-stone-700 rounded-xl text-xs font-semibold cursor-pointer">
+                                            {enviandoLogo ? <i className="fa-solid fa-spinner fa-spin"></i> : <i className="fa-solid fa-upload"></i>}
+                                            {logoUrlPreview ? 'Trocar imagem' : 'Enviar imagem'}
+                                            <input type="file" accept="image/*" onChange={enviarLogo} disabled={enviandoLogo} className="hidden" />
+                                        </label>
+                                    </div>
+                                    <p className="text-[11px] text-stone-400">Fica guardado de forma privada, só a sua conta acessa.</p>
+                                </div>
+                            )}
+                        </div>
+
+                        <div className="flex justify-end gap-2 px-5 py-4 border-t border-stone-200 bg-stone-50">
+                            <button onClick={onClose} className="px-4 py-2 bg-stone-100 hover:bg-stone-200 text-stone-700 text-xs font-semibold rounded-xl">Fechar</button>
+                            <button onClick={salvar} disabled={salvando} className="px-4 py-2 bg-amber-500 hover:bg-amber-600 disabled:opacity-50 text-stone-950 font-bold rounded-xl text-xs">
+                                {salvando ? <i className="fa-solid fa-spinner fa-spin"></i> : 'Salvar como padrão'}
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            );
+        }
+
+        // Faixas de cabeçalho/rodapé/logo dentro da "página" do editor — só
+        // exibição (a edição acontece no PainelLayoutPagina); somem quando não há
+        // nada configurado, pra não ocupar espaço à toa.
+        function FaixaLayoutPagina({ config, posicao }) {
+            const texto = posicao === 'cabecalho' ? config?.cabecalho : config?.rodape;
+            const mostrarLogo = posicao === 'cabecalho' && config?.logoUrl;
+            if (!texto && !mostrarLogo) return null;
+            return (
+                <div className={`px-8 md:px-12 py-3 text-[11px] text-stone-500 flex items-center gap-3 ${posicao === 'cabecalho' ? 'border-b border-stone-100' : 'border-t border-stone-100'}`}>
+                    {mostrarLogo && <img src={config.logoUrl} alt="Logotipo" className="h-8 max-w-[100px] object-contain flex-shrink-0" />}
+                    {texto && <span className="whitespace-pre-line">{texto}</span>}
+                </div>
+            );
+        }
+
         function CriacaoPecasIAView({ clients, processes, supabaseClient, session }) {
             const [tipoPeca, setTipoPeca] = useState(TIPOS_PECA_IA[0]);
             const [clienteId, setClienteId] = useState('');
@@ -4302,6 +4758,32 @@ OAB nº ${advogadoOab}`;
             // lateral, que continua visível/navegável) — só um espaço maior pra
             // trabalhar no texto, não é uma tela de verdade separada.
             const [expandido, setExpandido] = useState(false);
+            // Layout de página (cabeçalho/rodapé/logo) — um modelo só por conta,
+            // carregado uma vez e reaplicado em qualquer peça gerada nesta tela.
+            const [configDocumento, setConfigDocumento] = useState(null); // null = ainda carregando
+            const [mostrarLayoutPagina, setMostrarLayoutPagina] = useState(false);
+
+            useEffect(() => {
+                let cancelado = false;
+                (async () => {
+                    const { data, error } = await supabaseClient
+                        .from('configuracoes_documento')
+                        .select('cabecalho, rodape, logo_url')
+                        .eq('user_id', session.user.id)
+                        .maybeSingle();
+                    if (cancelado) return;
+                    if (error || !data) { setConfigDocumento({}); return; }
+                    let logoUrl = null;
+                    if (data.logo_url) {
+                        const { data: signed } = await supabaseClient.storage
+                            .from('logos-documento')
+                            .createSignedUrl(data.logo_url, 3600);
+                        logoUrl = signed?.signedUrl || null;
+                    }
+                    if (!cancelado) setConfigDocumento({ cabecalho: data.cabecalho, rodape: data.rodape, logoPath: data.logo_url, logoUrl });
+                })();
+                return () => { cancelado = true; };
+            }, [session.user.id]);
 
             const gerar = async () => {
                 if (!supabaseClient) {
@@ -4393,6 +4875,97 @@ OAB nº ${advogadoOab}`;
                 alert('Texto copiado para a área de transferência!');
             };
 
+            const [exportando, setExportando] = useState(false);
+            // Junta cabeçalho (com logo) + corpo da peça + rodapé num HTML só antes
+            // de mandar pro conversor de Word — o .docx gerado aqui não tem cabeçalho/
+            // rodapé "de verdade" que repete a cada página impressa (limitação da
+            // biblioteca html-docx-js, que só produz um corpo único); então cabeçalho
+            // e rodapé entram como blocos fixos no topo/fim do documento — ainda útil,
+            // só não é o mesmo mecanismo do Word nativo.
+            const exportarPecaComoWord = async () => {
+                setExportando(true);
+                try {
+                    const corpoHtml = htmlAtual || construirHtmlDocumento(resultado.texto);
+                    let cabecalhoHtml = '';
+                    if (configDocumento?.logoUrl || configDocumento?.cabecalho) {
+                        let imgTag = '';
+                        if (configDocumento?.logoUrl) {
+                            try {
+                                const dataUri = await converterImagemParaDataUri(configDocumento.logoUrl);
+                                imgTag = `<img src="${dataUri}" style="max-height:60px;max-width:180px;display:block;margin-bottom:6pt;" />`;
+                            } catch (err) {
+                                console.error('Falha ao converter logo pra exportação:', err);
+                            }
+                        }
+                        const textoCabecalho = configDocumento?.cabecalho
+                            ? `<p style="font-size:9pt;color:#555;margin:0;">${escaparHtml(configDocumento.cabecalho).replace(/\n/g, '<br/>')}</p>`
+                            : '';
+                        cabecalhoHtml = `<div>${imgTag}${textoCabecalho}</div><hr style="margin:12pt 0;border:none;border-top:1px solid #ccc;"/>`;
+                    }
+                    const rodapeHtml = configDocumento?.rodape
+                        ? `<hr style="margin:16pt 0 8pt 0;border:none;border-top:1px solid #ccc;"/><p style="font-size:9pt;color:#555;margin:0;">${escaparHtml(configDocumento.rodape).replace(/\n/g, '<br/>')}</p>`
+                        : '';
+                    await baixarComoWord(`${cabecalhoHtml}${corpoHtml}${rodapeHtml}`, `minuta-${tipoPeca}`, { isHtml: true });
+                } finally {
+                    setExportando(false);
+                }
+            };
+
+            // Impressão/PDF em A4 de verdade, com cabeçalho/rodapé/numeração de
+            // página que se REPETEM em cada página impressa — diferente do Word
+            // (limitação do html-docx-js, ver acima), aqui é o motor de impressão
+            // do próprio navegador cuidando disso via @page margin boxes (Chrome
+            // 131+), então funciona direito. "Salvar como PDF" no diálogo de
+            // impressão dá um PDF paginado de verdade.
+            const printContainerRef = useRef(null);
+            const imprimirPeca = async () => {
+                const corpoHtml = htmlAtual || construirHtmlDocumento(resultado.texto);
+                const escaparCss = (s) => (s || '').replace(/\\/g, '\\\\').replace(/"/g, '\\"').replace(/\n+/g, ' ').trim();
+
+                let logoRegra = '';
+                if (configDocumento?.logoUrl) {
+                    try {
+                        const dataUri = await converterImagemParaDataUri(configDocumento.logoUrl);
+                        logoRegra = `@top-left { content: url("${dataUri}"); }`;
+                    } catch (err) {
+                        console.error('Falha ao converter logo pra impressão:', err);
+                    }
+                }
+                const cabecalhoRegra = configDocumento?.cabecalho
+                    ? `@top-center { content: "${escaparCss(configDocumento.cabecalho)}"; font-size: 8pt; color: #555; }`
+                    : '';
+                const rodapeRegra = configDocumento?.rodape
+                    ? `@bottom-left { content: "${escaparCss(configDocumento.rodape)}"; font-size: 7pt; color: #777; }`
+                    : '';
+
+                document.getElementById('jc-print-style-peca')?.remove();
+                const style = document.createElement('style');
+                style.id = 'jc-print-style-peca';
+                style.textContent = `
+                    @page {
+                        size: A4;
+                        margin: 2.5cm 2cm;
+                        ${logoRegra}
+                        ${cabecalhoRegra}
+                        @bottom-center { content: "Página " counter(page) " de " counter(pages); font-size: 8pt; color: #555; }
+                        ${rodapeRegra}
+                    }
+                `;
+                document.head.appendChild(style);
+
+                if (printContainerRef.current) printContainerRef.current.innerHTML = corpoHtml;
+                document.body.classList.add('jc-imprimindo-peca');
+                window.print();
+                // 'afterprint' não dispara de forma confiável em todo navegador/SO —
+                // um timeout garante que a classe some mesmo se o evento falhar.
+                const limpar = () => {
+                    document.body.classList.remove('jc-imprimindo-peca');
+                    window.removeEventListener('afterprint', limpar);
+                };
+                window.addEventListener('afterprint', limpar);
+                setTimeout(limpar, 2000);
+            };
+
             return (
                 <div className="space-y-6">
                     <div className="bg-white p-6 rounded-2xl shadow-sm border border-stone-200">
@@ -4471,13 +5044,25 @@ OAB nº ${advogadoOab}`;
                                 <div className="flex gap-2">
                                     {resultado && (
                                         <>
-                                            <button onClick={() => baixarComoWord(htmlAtual || resultado.texto, `minuta-${tipoPeca}`, { isHtml: !!htmlAtual })} className="px-3 py-1.5 bg-navy-700 hover:bg-navy-800 text-white text-xs font-semibold rounded-lg">
-                                                <i className="fa-solid fa-file-word mr-1"></i> Word
+                                            <button onClick={exportarPecaComoWord} disabled={exportando} className="px-3 py-1.5 bg-navy-700 hover:bg-navy-800 disabled:opacity-50 text-white text-xs font-semibold rounded-lg">
+                                                {exportando ? <i className="fa-solid fa-spinner fa-spin mr-1"></i> : <i className="fa-solid fa-file-word mr-1"></i>} Word
+                                            </button>
+                                            <button onClick={imprimirPeca} title="Imprimir ou salvar como PDF — A4, com numeração de página" className="px-3 py-1.5 bg-rose-700 hover:bg-rose-800 text-white text-xs font-semibold rounded-lg">
+                                                <i className="fa-solid fa-file-pdf mr-1"></i> PDF
                                             </button>
                                             <button onClick={copiarTexto} className="px-3 py-1.5 bg-stone-100 hover:bg-stone-200 text-stone-700 text-xs font-semibold rounded-lg">
                                                 <i className="fa-solid fa-copy mr-1"></i> Copiar
                                             </button>
                                         </>
+                                    )}
+                                    {expandido && (
+                                        <button
+                                            onClick={() => setMostrarLayoutPagina(true)}
+                                            title="Cabeçalho, rodapé e logotipo"
+                                            className="px-3 py-1.5 bg-stone-100 hover:bg-stone-200 text-stone-700 text-xs font-semibold rounded-lg"
+                                        >
+                                            <i className="fa-solid fa-swatchbook mr-1"></i> Layout de Página
+                                        </button>
                                     )}
                                     <button
                                         onClick={() => setExpandido(e => !e)}
@@ -4496,10 +5081,25 @@ OAB nº ${advogadoOab}`;
                                     </div>
                                 )}
                                 {!loading && resultado && (
-                                    <PecaGeradaViewer key={geracaoId} texto={resultado.texto} onChangeHtml={alterarHtml} onChangeTexto={alterarTexto} editado={editado} largo={expandido} />
+                                    <PecaGeradaViewer key={geracaoId} texto={resultado.texto} onChangeHtml={alterarHtml} onChangeTexto={alterarTexto} editado={editado} largo={expandido} supabaseClient={supabaseClient} configDocumento={configDocumento} />
                                 )}
                             </div>
                         </div>
+                    </div>
+                    {mostrarLayoutPagina && (
+                        <PainelLayoutPagina
+                            session={session}
+                            supabaseClient={supabaseClient}
+                            configAtual={configDocumento}
+                            onSalvo={(novaConfig) => setConfigDocumento(novaConfig)}
+                            onClose={() => setMostrarLayoutPagina(false)}
+                        />
+                    )}
+                    {/* Fora da vista (ver .jc-print-container no <style>), só existe pra
+                        imprimirPeca() preencher e o navegador imprimir — cabeçalho, rodapé
+                        e numeração vêm do @page injetado ali, não daqui, pra não duplicar. */}
+                    <div className="jc-print-container jc-editor-peca [&_.ProseMirror]:outline-none [&_.ProseMirror_h3]:font-bold [&_.ProseMirror_h3]:text-stone-900 [&_.ProseMirror_h3]:mt-6 [&_.ProseMirror_h3]:mb-2 [&_.ProseMirror_h3]:text-base [&_.ProseMirror_p]:mb-4 [&_.ProseMirror_p]:leading-relaxed [&_.ProseMirror_table]:border-collapse [&_.ProseMirror_table]:w-full [&_.ProseMirror_td]:border [&_.ProseMirror_td]:border-stone-300 [&_.ProseMirror_td]:p-2 [&_.ProseMirror_th]:border [&_.ProseMirror_th]:border-stone-300 [&_.ProseMirror_th]:p-2 [&_.ProseMirror_th]:bg-stone-50">
+                        <div ref={printContainerRef} className="ProseMirror"></div>
                     </div>
                 </div>
             );
