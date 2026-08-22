@@ -4349,7 +4349,7 @@ OAB nº ${advogadoOab}`;
             );
         }
 
-        function EditorPecaTiptap({ htmlInicial, onChangeHtml, onChangeTexto, largo, supabaseClient }) {
+        function EditorPecaTiptap({ htmlInicial, onChangeHtml, onChangeTexto, largo, supabaseClient, configDocumento }) {
             const [editor, setEditor] = useState(null);
             const [erroCarregamento, setErroCarregamento] = useState(null);
             const [menuContexto, setMenuContexto] = useState(null); // { x, y } | null
@@ -4392,6 +4392,7 @@ OAB nº ${advogadoOab}`;
 
             return (
                 <div className={`${largo ? 'max-w-5xl' : 'max-w-3xl'} mx-auto bg-white rounded-lg shadow-[0_1px_4px_rgba(15,23,42,0.08)] border border-stone-200 overflow-hidden`}>
+                    <FaixaLayoutPagina config={configDocumento} posicao="cabecalho" />
                     {editor ? <BarraFerramentasEditor editor={editor} extra={<AssistenteEditorPanel editor={editor} supabaseClient={supabaseClient} />} /> : (
                         <div className="p-1.5 border-b border-stone-200 bg-stone-50 text-[11px] text-stone-400 flex items-center gap-2">
                             <i className="fa-solid fa-spinner fa-spin"></i> Carregando editor...
@@ -4409,6 +4410,7 @@ OAB nº ${advogadoOab}`;
                     {menuContexto && editor && (
                         <MenuContextualEditor editor={editor} x={menuContexto.x} y={menuContexto.y} onClose={() => setMenuContexto(null)} />
                     )}
+                    <FaixaLayoutPagina config={configDocumento} posicao="rodape" />
                 </div>
             );
         }
@@ -4420,7 +4422,7 @@ OAB nº ${advogadoOab}`;
         // Jurisprudência fica de fora daqui de propósito — vai num painel à
         // esquerda (junto dos Parâmetros), não embaixo da página do documento. Ver
         // PainelJurisprudenciaLateral em CriacaoPecasIAView.
-        function PecaGeradaViewer({ texto, onChangeHtml, onChangeTexto, editado, largo, supabaseClient }) {
+        function PecaGeradaViewer({ texto, onChangeHtml, onChangeTexto, editado, largo, supabaseClient, configDocumento }) {
             if (!texto) return null;
             const linhaAviso = texto.split('\n').find(l => l.includes('MINUTA GERADA POR IA') || l.includes('SUGESTÃO GERADA POR IA'));
             const textoSemAviso = linhaAviso ? texto.replace(linhaAviso, '').replace(/\n{3,}/g, '\n\n').trim() : texto;
@@ -4440,6 +4442,7 @@ OAB nº ${advogadoOab}`;
                         onChangeTexto={onChangeTexto}
                         largo={largo}
                         supabaseClient={supabaseClient}
+                        configDocumento={configDocumento}
                     />
                     <p className={`${larguraAviso} mx-auto text-[11px] text-stone-400 flex items-center gap-1.5`}>
                         <i className="fa-solid fa-pen"></i> Use a barra acima ou clique com o botão direito pra formatar — negrito, títulos, listas, tabela, marca-texto, citação e caixas de destaque (atenção, prazo, importante, definição).
@@ -4508,6 +4511,196 @@ OAB nº ${advogadoOab}`;
             );
         }
 
+        // Converte uma imagem (por URL, inclusive signed URL do Storage) em data
+        // URI base64 — necessário pra exportação Word: html-docx-js só embute
+        // imagens assim, não aceita URL remota (testado/documentado).
+        async function converterImagemParaDataUri(url) {
+            const resposta = await fetch(url);
+            const blob = await resposta.blob();
+            return new Promise((resolve, reject) => {
+                const leitor = new FileReader();
+                leitor.onload = () => resolve(leitor.result);
+                leitor.onerror = reject;
+                leitor.readAsDataURL(blob);
+            });
+        }
+
+        // Layout de página (cabeçalho, rodapé, logotipo do escritório) — um único
+        // "modelo" salvo por conta, reaplicado em qualquer peça daqui pra frente
+        // (não é conteúdo de uma peça específica). Só o painel de configuração
+        // fica atrás do modo expandido (pedido explícito — "menu expandido"); uma
+        // vez salvo, o cabeçalho/rodapé/logo aparecem na página normalmente.
+        function PainelLayoutPagina({ session, supabaseClient, configAtual, onSalvo, onClose }) {
+            const [aba, setAba] = useState('cabecalho'); // 'cabecalho' | 'rodape' | 'logo'
+            const [cabecalho, setCabecalho] = useState(configAtual?.cabecalho || '');
+            const [rodape, setRodape] = useState(configAtual?.rodape || '');
+            const [logoPath, setLogoPath] = useState(configAtual?.logoPath || null);
+            const [logoUrlPreview, setLogoUrlPreview] = useState(configAtual?.logoUrl || null);
+            const [enviandoLogo, setEnviandoLogo] = useState(false);
+            const [salvando, setSalvando] = useState(false);
+            const [mensagem, setMensagem] = useState(null);
+
+            const enviarLogo = async (e) => {
+                const arquivo = e.target.files?.[0];
+                if (!arquivo) return;
+                setEnviandoLogo(true);
+                setMensagem(null);
+                try {
+                    const extensao = (arquivo.name.match(/\.[^.]+$/) || ['.png'])[0];
+                    const caminho = `${session.user.id}/logo${extensao}`;
+                    const { error: erroUpload } = await supabaseClient.storage
+                        .from('logos-documento')
+                        .upload(caminho, arquivo, { upsert: true, contentType: arquivo.type });
+                    if (erroUpload) throw erroUpload;
+                    const { data: signed, error: erroSigned } = await supabaseClient.storage
+                        .from('logos-documento')
+                        .createSignedUrl(caminho, 3600);
+                    if (erroSigned) throw erroSigned;
+                    setLogoPath(caminho);
+                    setLogoUrlPreview(signed.signedUrl);
+                } catch (err) {
+                    setMensagem({ tipo: 'erro', texto: err.message || 'Não foi possível enviar o logotipo.' });
+                } finally {
+                    setEnviandoLogo(false);
+                    e.target.value = '';
+                }
+            };
+
+            const removerLogo = async () => {
+                if (logoPath) await supabaseClient.storage.from('logos-documento').remove([logoPath]).catch(() => {});
+                setLogoPath(null);
+                setLogoUrlPreview(null);
+            };
+
+            const salvar = async () => {
+                setSalvando(true);
+                setMensagem(null);
+                const { error } = await supabaseClient.from('configuracoes_documento').upsert({
+                    user_id: session.user.id,
+                    cabecalho: cabecalho.trim() || null,
+                    rodape: rodape.trim() || null,
+                    logo_url: logoPath,
+                    atualizado_em: new Date().toISOString(),
+                });
+                setSalvando(false);
+                if (error) {
+                    setMensagem({ tipo: 'erro', texto: error.message || 'Não foi possível salvar.' });
+                    return;
+                }
+                onSalvo({ cabecalho: cabecalho.trim(), rodape: rodape.trim(), logoPath, logoUrl: logoUrlPreview });
+                setMensagem({ tipo: 'sucesso', texto: 'Salvo — vale para qualquer peça daqui pra frente.' });
+            };
+
+            const ABAS = [
+                { id: 'cabecalho', rotulo: 'Cabeçalho', icone: 'fa-heading' },
+                { id: 'rodape', rotulo: 'Rodapé', icone: 'fa-shoe-prints' },
+                { id: 'logo', rotulo: 'Logotipo', icone: 'fa-image' },
+            ];
+
+            return (
+                <div className="fixed inset-0 bg-navy-900/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+                    <div className="bg-white rounded-2xl max-w-lg w-full shadow-2xl overflow-hidden">
+                        <div className="flex justify-between items-center border-b border-stone-200 px-5 py-4">
+                            <div>
+                                <h3 className="font-bold text-stone-900 text-sm">Layout de Página</h3>
+                                <p className="text-stone-400 text-[11px] mt-0.5">Cabeçalho, rodapé e logotipo — um modelo só, salvo pra sua conta, reaplicado em qualquer peça.</p>
+                            </div>
+                            <button onClick={onClose} className="text-stone-400 hover:text-stone-600"><i className="fa-solid fa-xmark text-lg"></i></button>
+                        </div>
+
+                        <div className="flex gap-1 px-5 pt-3 border-b border-stone-200">
+                            {ABAS.map(a => (
+                                <button
+                                    key={a.id}
+                                    onClick={() => setAba(a.id)}
+                                    className={`px-3 py-2 text-xs font-semibold rounded-t-lg flex items-center gap-1.5 ${aba === a.id ? 'bg-stone-100 text-stone-900 border-b-2 border-amber-500' : 'text-stone-500 hover:text-stone-800'}`}
+                                >
+                                    <i className={`fa-solid ${a.icone}`}></i> {a.rotulo}
+                                </button>
+                            ))}
+                        </div>
+
+                        <div className="p-5 space-y-3 min-h-[180px]">
+                            {mensagem && (
+                                <div className={`p-2.5 rounded-xl text-xs font-medium ${mensagem.tipo === 'sucesso' ? 'bg-emerald-50 text-emerald-700 border border-emerald-200' : 'bg-rose-50 text-rose-700 border border-rose-200'}`}>
+                                    {mensagem.texto}
+                                </div>
+                            )}
+
+                            {aba === 'cabecalho' && (
+                                <div>
+                                    <label className="block text-xs font-semibold text-stone-600 mb-1">Texto do cabeçalho</label>
+                                    <textarea
+                                        value={cabecalho}
+                                        onChange={e => setCabecalho(e.target.value)}
+                                        rows={3}
+                                        placeholder="Ex: Escritório Fulano de Tal Advocacia — OAB/RJ 12.345"
+                                        className="w-full p-2.5 bg-stone-50 border border-stone-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-amber-500"
+                                    />
+                                </div>
+                            )}
+
+                            {aba === 'rodape' && (
+                                <div>
+                                    <label className="block text-xs font-semibold text-stone-600 mb-1">Texto do rodapé</label>
+                                    <textarea
+                                        value={rodape}
+                                        onChange={e => setRodape(e.target.value)}
+                                        rows={3}
+                                        placeholder="Ex: Rua Exemplo, 123 — Rio de Janeiro/RJ — contato@escritorio.adv.br"
+                                        className="w-full p-2.5 bg-stone-50 border border-stone-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-amber-500"
+                                    />
+                                </div>
+                            )}
+
+                            {aba === 'logo' && (
+                                <div className="space-y-3">
+                                    {logoUrlPreview ? (
+                                        <div className="flex items-center gap-3">
+                                            <img src={logoUrlPreview} alt="Logotipo" className="h-16 max-w-[160px] object-contain border border-stone-200 rounded-lg p-1" />
+                                            <button onClick={removerLogo} className="text-xs font-semibold text-rose-600 hover:text-rose-800">Remover</button>
+                                        </div>
+                                    ) : (
+                                        <p className="text-xs text-stone-400">Nenhum logotipo enviado ainda.</p>
+                                    )}
+                                    <div>
+                                        <label className="inline-flex items-center gap-2 px-3 py-2 bg-stone-100 hover:bg-stone-200 text-stone-700 rounded-xl text-xs font-semibold cursor-pointer">
+                                            {enviandoLogo ? <i className="fa-solid fa-spinner fa-spin"></i> : <i className="fa-solid fa-upload"></i>}
+                                            {logoUrlPreview ? 'Trocar imagem' : 'Enviar imagem'}
+                                            <input type="file" accept="image/*" onChange={enviarLogo} disabled={enviandoLogo} className="hidden" />
+                                        </label>
+                                    </div>
+                                    <p className="text-[11px] text-stone-400">Fica guardado de forma privada, só a sua conta acessa.</p>
+                                </div>
+                            )}
+                        </div>
+
+                        <div className="flex justify-end gap-2 px-5 py-4 border-t border-stone-200 bg-stone-50">
+                            <button onClick={onClose} className="px-4 py-2 bg-stone-100 hover:bg-stone-200 text-stone-700 text-xs font-semibold rounded-xl">Fechar</button>
+                            <button onClick={salvar} disabled={salvando} className="px-4 py-2 bg-amber-500 hover:bg-amber-600 disabled:opacity-50 text-stone-950 font-bold rounded-xl text-xs">
+                                {salvando ? <i className="fa-solid fa-spinner fa-spin"></i> : 'Salvar como padrão'}
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            );
+        }
+
+        // Faixas de cabeçalho/rodapé/logo dentro da "página" do editor — só
+        // exibição (a edição acontece no PainelLayoutPagina); somem quando não há
+        // nada configurado, pra não ocupar espaço à toa.
+        function FaixaLayoutPagina({ config, posicao }) {
+            const texto = posicao === 'cabecalho' ? config?.cabecalho : config?.rodape;
+            const mostrarLogo = posicao === 'cabecalho' && config?.logoUrl;
+            if (!texto && !mostrarLogo) return null;
+            return (
+                <div className={`px-8 md:px-12 py-3 text-[11px] text-stone-500 flex items-center gap-3 ${posicao === 'cabecalho' ? 'border-b border-stone-100' : 'border-t border-stone-100'}`}>
+                    {mostrarLogo && <img src={config.logoUrl} alt="Logotipo" className="h-8 max-w-[100px] object-contain flex-shrink-0" />}
+                    {texto && <span className="whitespace-pre-line">{texto}</span>}
+                </div>
+            );
+        }
+
         function CriacaoPecasIAView({ clients, processes, supabaseClient, session }) {
             const [tipoPeca, setTipoPeca] = useState(TIPOS_PECA_IA[0]);
             const [clienteId, setClienteId] = useState('');
@@ -4538,6 +4731,32 @@ OAB nº ${advogadoOab}`;
             // lateral, que continua visível/navegável) — só um espaço maior pra
             // trabalhar no texto, não é uma tela de verdade separada.
             const [expandido, setExpandido] = useState(false);
+            // Layout de página (cabeçalho/rodapé/logo) — um modelo só por conta,
+            // carregado uma vez e reaplicado em qualquer peça gerada nesta tela.
+            const [configDocumento, setConfigDocumento] = useState(null); // null = ainda carregando
+            const [mostrarLayoutPagina, setMostrarLayoutPagina] = useState(false);
+
+            useEffect(() => {
+                let cancelado = false;
+                (async () => {
+                    const { data, error } = await supabaseClient
+                        .from('configuracoes_documento')
+                        .select('cabecalho, rodape, logo_url')
+                        .eq('user_id', session.user.id)
+                        .maybeSingle();
+                    if (cancelado) return;
+                    if (error || !data) { setConfigDocumento({}); return; }
+                    let logoUrl = null;
+                    if (data.logo_url) {
+                        const { data: signed } = await supabaseClient.storage
+                            .from('logos-documento')
+                            .createSignedUrl(data.logo_url, 3600);
+                        logoUrl = signed?.signedUrl || null;
+                    }
+                    if (!cancelado) setConfigDocumento({ cabecalho: data.cabecalho, rodape: data.rodape, logoPath: data.logo_url, logoUrl });
+                })();
+                return () => { cancelado = true; };
+            }, [session.user.id]);
 
             const gerar = async () => {
                 if (!supabaseClient) {
@@ -4629,6 +4848,42 @@ OAB nº ${advogadoOab}`;
                 alert('Texto copiado para a área de transferência!');
             };
 
+            const [exportando, setExportando] = useState(false);
+            // Junta cabeçalho (com logo) + corpo da peça + rodapé num HTML só antes
+            // de mandar pro conversor de Word — o .docx gerado aqui não tem cabeçalho/
+            // rodapé "de verdade" que repete a cada página impressa (limitação da
+            // biblioteca html-docx-js, que só produz um corpo único); então cabeçalho
+            // e rodapé entram como blocos fixos no topo/fim do documento — ainda útil,
+            // só não é o mesmo mecanismo do Word nativo.
+            const exportarPecaComoWord = async () => {
+                setExportando(true);
+                try {
+                    const corpoHtml = htmlAtual || construirHtmlDocumento(resultado.texto);
+                    let cabecalhoHtml = '';
+                    if (configDocumento?.logoUrl || configDocumento?.cabecalho) {
+                        let imgTag = '';
+                        if (configDocumento?.logoUrl) {
+                            try {
+                                const dataUri = await converterImagemParaDataUri(configDocumento.logoUrl);
+                                imgTag = `<img src="${dataUri}" style="max-height:60px;max-width:180px;display:block;margin-bottom:6pt;" />`;
+                            } catch (err) {
+                                console.error('Falha ao converter logo pra exportação:', err);
+                            }
+                        }
+                        const textoCabecalho = configDocumento?.cabecalho
+                            ? `<p style="font-size:9pt;color:#555;margin:0;">${escaparHtml(configDocumento.cabecalho).replace(/\n/g, '<br/>')}</p>`
+                            : '';
+                        cabecalhoHtml = `<div>${imgTag}${textoCabecalho}</div><hr style="margin:12pt 0;border:none;border-top:1px solid #ccc;"/>`;
+                    }
+                    const rodapeHtml = configDocumento?.rodape
+                        ? `<hr style="margin:16pt 0 8pt 0;border:none;border-top:1px solid #ccc;"/><p style="font-size:9pt;color:#555;margin:0;">${escaparHtml(configDocumento.rodape).replace(/\n/g, '<br/>')}</p>`
+                        : '';
+                    await baixarComoWord(`${cabecalhoHtml}${corpoHtml}${rodapeHtml}`, `minuta-${tipoPeca}`, { isHtml: true });
+                } finally {
+                    setExportando(false);
+                }
+            };
+
             return (
                 <div className="space-y-6">
                     <div className="bg-white p-6 rounded-2xl shadow-sm border border-stone-200">
@@ -4707,13 +4962,22 @@ OAB nº ${advogadoOab}`;
                                 <div className="flex gap-2">
                                     {resultado && (
                                         <>
-                                            <button onClick={() => baixarComoWord(htmlAtual || resultado.texto, `minuta-${tipoPeca}`, { isHtml: !!htmlAtual })} className="px-3 py-1.5 bg-navy-700 hover:bg-navy-800 text-white text-xs font-semibold rounded-lg">
-                                                <i className="fa-solid fa-file-word mr-1"></i> Word
+                                            <button onClick={exportarPecaComoWord} disabled={exportando} className="px-3 py-1.5 bg-navy-700 hover:bg-navy-800 disabled:opacity-50 text-white text-xs font-semibold rounded-lg">
+                                                {exportando ? <i className="fa-solid fa-spinner fa-spin mr-1"></i> : <i className="fa-solid fa-file-word mr-1"></i>} Word
                                             </button>
                                             <button onClick={copiarTexto} className="px-3 py-1.5 bg-stone-100 hover:bg-stone-200 text-stone-700 text-xs font-semibold rounded-lg">
                                                 <i className="fa-solid fa-copy mr-1"></i> Copiar
                                             </button>
                                         </>
+                                    )}
+                                    {expandido && (
+                                        <button
+                                            onClick={() => setMostrarLayoutPagina(true)}
+                                            title="Cabeçalho, rodapé e logotipo"
+                                            className="px-3 py-1.5 bg-stone-100 hover:bg-stone-200 text-stone-700 text-xs font-semibold rounded-lg"
+                                        >
+                                            <i className="fa-solid fa-swatchbook mr-1"></i> Layout de Página
+                                        </button>
                                     )}
                                     <button
                                         onClick={() => setExpandido(e => !e)}
@@ -4732,11 +4996,20 @@ OAB nº ${advogadoOab}`;
                                     </div>
                                 )}
                                 {!loading && resultado && (
-                                    <PecaGeradaViewer key={geracaoId} texto={resultado.texto} onChangeHtml={alterarHtml} onChangeTexto={alterarTexto} editado={editado} largo={expandido} supabaseClient={supabaseClient} />
+                                    <PecaGeradaViewer key={geracaoId} texto={resultado.texto} onChangeHtml={alterarHtml} onChangeTexto={alterarTexto} editado={editado} largo={expandido} supabaseClient={supabaseClient} configDocumento={configDocumento} />
                                 )}
                             </div>
                         </div>
                     </div>
+                    {mostrarLayoutPagina && (
+                        <PainelLayoutPagina
+                            session={session}
+                            supabaseClient={supabaseClient}
+                            configAtual={configDocumento}
+                            onSalvo={(novaConfig) => setConfigDocumento(novaConfig)}
+                            onClose={() => setMostrarLayoutPagina(false)}
+                        />
+                    )}
                 </div>
             );
         }
