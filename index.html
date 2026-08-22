@@ -702,8 +702,24 @@
             useEffect(() => {
                 if (!supabaseClient) { setSession(null); return; }
                 supabaseClient.auth.getSession().then(({ data }) => setSession(data.session));
-                const { data: assinatura } = supabaseClient.auth.onAuthStateChange((_evento, novaSessao) => {
+                const { data: assinatura } = supabaseClient.auth.onAuthStateChange((evento, novaSessao) => {
                     setSession(novaSessao);
+                    // SIGNED_IN só dispara em entrada nova de verdade (login por
+                    // senha, OAuth, etc.) — reload de página com sessão já salva
+                    // no localStorage vem como INITIAL_SESSION, não entra aqui.
+                    // É exatamente a granularidade que "histórico de acessos"
+                    // (Painel Admin) quer: um evento por login, não um por aba
+                    // aberta. Falha aqui nunca impede o login em si (best-effort).
+                    if (evento === 'SIGNED_IN' && novaSessao) {
+                        supabaseClient.from('historico_acessos').insert({
+                            user_id: novaSessao.user.id,
+                            email: novaSessao.user.email,
+                            nome: novaSessao.user.user_metadata?.nome || null,
+                            user_agent: navigator.userAgent,
+                        }).then(({ error }) => {
+                            if (error) console.error('Falha ao registrar acesso (não bloqueia o login):', error);
+                        });
+                    }
                 });
                 return () => assinatura.subscription.unsubscribe();
             }, []);
@@ -1233,6 +1249,42 @@
             // Tutorial de boas-vindas: só aparece se a conta está vazia (recém-criada
             // ou zerada) e ainda não foi visto neste navegador (ver AssistenteBoasVindas).
             const [mostrarOnboarding, setMostrarOnboarding] = useState(false);
+            // "Modo avançado" (perfil administrador) — só nesta sessão, nunca fica
+            // salvo (ver ModoAvancadoCard); mora aqui porque controla o item
+            // "Painel Admin" na barra lateral, não só o card em Configurações.
+            const [modoAvancadoAtivo, setModoAvancadoAtivo] = useState(false);
+
+            // Presença: todo usuário logado (não só admin) anuncia "estou online"
+            // enquanto o app está aberto, e TAMBÉM escuta o mesmo canal pra saber
+            // quem mais está — um canal só, um único lugar (aqui), com o
+            // resultado guardado em estado e repassado por prop pro Painel Admin
+            // (PainelOnlineAgora vira só exibição, não abre canal próprio).
+            // Importante: o supabase-js reaproveita o MESMO objeto de canal pra
+            // quem chamar .channel() com o mesmo nome de tópico — dois .channel()
+            // + .subscribe() independentes pro mesmo tópico (um em cada
+            // componente) quebra com "cannot add presence callbacks after
+            // subscribe()", porque os listeners .on() têm que estar registrados
+            // ANTES do primeiro .subscribe() daquele canal. Daí um canal só, com
+            // .on() e .subscribe() sempre juntos, e o resto lê o resultado por
+            // prop. Ver CANAL_PRESENCA_JC pra nota sobre o alcance desse canal.
+            const [onlineAgora, setOnlineAgora] = useState([]);
+            useEffect(() => {
+                const canal = supabaseClient.channel(CANAL_PRESENCA_JC);
+                canal.on('presence', { event: 'sync' }, () => {
+                    const estado = canal.presenceState();
+                    setOnlineAgora(Object.values(estado).flat().sort((a, b) => (a.entrouEm || '').localeCompare(b.entrouEm || '')));
+                });
+                canal.subscribe((status) => {
+                    if (status === 'SUBSCRIBED') {
+                        canal.track({
+                            email: session.user.email,
+                            nome: session.user.user_metadata?.nome || null,
+                            entrouEm: new Date().toISOString(),
+                        });
+                    }
+                });
+                return () => { supabaseClient.removeChannel(canal); };
+            }, [supabaseClient, session.user.id]);
 
             // Modals
             const [clientModal, setClientModal] = useState(null); // null | 'new' | clienteObjeto (edição)
@@ -1694,6 +1746,14 @@
                                 active={activeTab === 'configuracoes'}
                                 onClick={() => { setActiveTab('configuracoes'); setIsMobileMenuOpen(false); }}
                             />
+                            {session.user.app_metadata?.role === 'admin' && modoAvancadoAtivo && (
+                                <SidebarItem
+                                    icon="fa-user-shield"
+                                    label="Painel Admin"
+                                    active={activeTab === 'admin_painel'}
+                                    onClick={() => { setActiveTab('admin_painel'); setIsMobileMenuOpen(false); }}
+                                />
+                            )}
                         </nav>
 
                         {/* Profile Footer */}
@@ -1812,7 +1872,16 @@
                         )}
 
                         {activeTab === 'configuracoes' && (
-                            <ConfiguracoesView session={session} supabaseClient={supabaseClient} />
+                            <ConfiguracoesView
+                                session={session}
+                                supabaseClient={supabaseClient}
+                                modoAvancadoAtivo={modoAvancadoAtivo}
+                                onModoAvancadoAtivado={setModoAvancadoAtivo}
+                            />
+                        )}
+
+                        {activeTab === 'admin_painel' && session.user.app_metadata?.role === 'admin' && modoAvancadoAtivo && (
+                            <PainelAdmin supabaseClient={supabaseClient} onlineAgora={onlineAgora} />
                         )}
                     </main>
 
@@ -5476,13 +5545,15 @@ OAB nº ${advogadoOab}`;
         // 20260821000000_perfil_administrador.sql e a Edge Function
         // ativar-modo-avancado pras três barreiras reais (nenhuma delas confia
         // no front-end). Este card só decide se aparece — quem decide se o
-        // clique funciona é sempre o servidor. Ainda não existe nenhuma
-        // funcionalidade nova atrás do modo avançado, só o próprio toggle.
-        function ModoAvancadoCard({ session, supabaseClient }) {
+        // clique funciona é sempre o servidor.
+        // "ativo" mora em AppLogado (não aqui) — ele também controla se o item
+        // "Painel Admin" aparece na barra lateral, então precisa ser visível
+        // pros dois lugares ao mesmo tempo. Continua "só nesta sessão, nunca
+        // fica salvo": recarregar a página exige ativar de novo.
+        function ModoAvancadoCard({ session, supabaseClient, ativo, onAtivar }) {
             const [temMfa, setTemMfa] = useState(null); // null=carregando
             const [ativando, setAtivando] = useState(false);
             const [resultado, setResultado] = useState(null); // { tipo, texto } | null
-            const [ativo, setAtivo] = useState(false); // só nesta sessão — nunca fica salvo
 
             const checarMfa = () => {
                 supabaseClient.auth.mfa.listFactors().then(({ data, error }) => {
@@ -5503,10 +5574,10 @@ OAB nº ${advogadoOab}`;
                     return;
                 }
                 if (data?.liberado) {
-                    setAtivo(true);
-                    setResultado({ tipo: 'sucesso', texto: 'Modo avançado ativado nesta sessão.' });
+                    onAtivar(true);
+                    setResultado({ tipo: 'sucesso', texto: 'Modo avançado ativado nesta sessão — o item "Painel Admin" apareceu na barra lateral.' });
                 } else {
-                    setAtivo(false);
+                    onAtivar(false);
                     setResultado({ tipo: 'erro', texto: data?.motivo || 'Não autorizado.' });
                 }
             };
@@ -5548,7 +5619,12 @@ OAB nº ${advogadoOab}`;
                         {ativo ? 'Verificar novamente' : 'Ativar modo avançado'}
                     </button>
 
-                    {ativo && <PainelFeedbackRecebido supabaseClient={supabaseClient} />}
+                    {ativo && (
+                        <p className="text-xs text-stone-500">
+                            <i className="fa-solid fa-circle-check text-emerald-600 mr-1.5"></i>
+                            Acesse feedback recebido, acessos e quem está online agora em <span className="font-semibold text-stone-700">Painel Admin</span>, na barra lateral.
+                        </p>
+                    )}
                 </div>
             );
         }
@@ -5676,10 +5752,9 @@ OAB nº ${advogadoOab}`;
             );
         }
 
-        // Só aparece pra quem já ativou o modo avançado (role admin + lista
-        // oculta + MFA, ver ModoAvancadoCard) — lê todo feedback via a policy
-        // "administrador ve todo feedback" (checa app_metadata.role direto no
-        // JWT, sem precisar de Edge Function pra isso).
+        // Uma das seções do Painel Admin (ver PainelAdmin logo abaixo) — lê todo
+        // feedback via a policy "administrador ve todo feedback" (checa
+        // app_metadata.role direto no JWT, sem precisar de Edge Function pra isso).
         function PainelFeedbackRecebido({ supabaseClient }) {
             const [feedback, setFeedback] = useState(null);
 
@@ -5700,7 +5775,7 @@ OAB nº ${advogadoOab}`;
             const ROTULOS_TIPO = { critica: 'Crítica', sugestao: 'Sugestão', avaliacao: 'Avaliação' };
 
             return (
-                <div className="pt-4 border-t border-stone-200 space-y-3">
+                <div className="bg-white rounded-2xl border border-stone-200 shadow-sm p-5 space-y-3">
                     <h4 className="font-bold text-stone-900 text-sm flex items-center gap-2">
                         <i className="fa-solid fa-inbox text-indigo-500"></i> Críticas, sugestões e avaliações recebidas
                         {feedback && feedback.some(f => !f.lido) && (
@@ -5732,7 +5807,109 @@ OAB nº ${advogadoOab}`;
             );
         }
 
-        function ConfiguracoesView({ session, supabaseClient }) {
+        // Nome do canal de presença (Supabase Realtime) usado tanto por quem
+        // anuncia "estou online" (todo usuário logado, ver o useEffect de
+        // presença em AppLogado) quanto por quem lê a lista (PainelOnlineAgora,
+        // abaixo). Fronteira de confiança aceita conscientemente por ora: é um
+        // canal Realtime comum (não "private" com policy de Realtime
+        // Authorization) — tecnicamente alcançável por qualquer um com a chave
+        // anônima do projeto (já pública, embutida no próprio app) e o nome do
+        // canal (também visível no código-fonte). O que ele expõe é só
+        // nome/e-mail de quem está logado agora, sem nenhum dado de caso/
+        // cliente — risco aceitável para hoje (2 contas reais). Se o número de
+        // usuários crescer, vale revisitar com Realtime Authorization de verdade.
+        const CANAL_PRESENCA_JC = 'jc-presenca-online';
+
+        // Seção do Painel Admin: quem está com o app aberto agora. Só exibição —
+        // o canal Realtime Presence é aberto uma única vez lá em AppLogado
+        // (mesmo componente que já anuncia a própria presença) e o resultado
+        // desce por prop, ver comentário lá pra saber por quê (dois .channel()
+        // independentes pro mesmo tópico quebra a API do supabase-js). Não é
+        // uma tabela — é estado efêmero, guardado só na memória do servidor
+        // Realtime enquanto o canal tem gente conectada; ninguém "desloga"
+        // disso, some sozinho quando a aba fecha.
+        function PainelOnlineAgora({ online }) {
+            return (
+                <div className="bg-white rounded-2xl border border-stone-200 shadow-sm p-5 space-y-3">
+                    <h4 className="font-bold text-stone-900 text-sm flex items-center gap-2">
+                        <i className="fa-solid fa-circle text-emerald-500 text-[8px]"></i> Quem está online agora
+                        <span className="text-[10px] font-bold px-1.5 py-0.5 rounded-full bg-stone-100 text-stone-500">{online.length}</span>
+                    </h4>
+                    {online.length === 0 && <p className="text-xs text-stone-400">Ninguém com o app aberto agora (além de você, se a conexão ainda não sincronizou).</p>}
+                    <div className="space-y-2">
+                        {online.map((p, i) => (
+                            <div key={i} className="flex items-center gap-2.5 p-2.5 bg-stone-50 rounded-lg text-xs">
+                                <span className="w-2 h-2 rounded-full bg-emerald-500 flex-shrink-0"></span>
+                                <span className="font-semibold text-stone-800">{p.nome || p.email || 'Sem nome'}</span>
+                                {p.nome && <span className="text-stone-400">{p.email}</span>}
+                                <span className="text-stone-400 ml-auto">desde {p.entrouEm ? new Date(p.entrouEm).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' }) : '—'}</span>
+                            </div>
+                        ))}
+                    </div>
+                </div>
+            );
+        }
+
+        // Seção do Painel Admin: histórico de logins reais (não reload de aba —
+        // ver comentário no onAuthStateChange de App()), gravado em
+        // historico_acessos (migration 20260822000000_historico_acessos.sql).
+        // Só o administrador lê, via RLS (auth.jwt() -> app_metadata ->> role).
+        function PainelHistoricoAcessos({ supabaseClient }) {
+            const [acessos, setAcessos] = useState(null); // null = carregando
+
+            useEffect(() => {
+                supabaseClient
+                    .from('historico_acessos')
+                    .select('id, email, nome, criado_em')
+                    .order('criado_em', { ascending: false })
+                    .limit(100)
+                    .then(({ data, error }) => { if (!error) setAcessos(data || []); });
+            }, [supabaseClient]);
+
+            return (
+                <div className="bg-white rounded-2xl border border-stone-200 shadow-sm p-5 space-y-3">
+                    <h4 className="font-bold text-stone-900 text-sm flex items-center gap-2">
+                        <i className="fa-solid fa-right-to-bracket text-indigo-500"></i> Histórico de acessos
+                        <span className="text-[10px] font-normal text-stone-400">(últimos 100)</span>
+                    </h4>
+                    {acessos === null && <p className="text-xs text-stone-400"><i className="fa-solid fa-spinner fa-spin mr-2"></i>Carregando...</p>}
+                    {acessos && acessos.length === 0 && <p className="text-xs text-stone-400">Nenhum acesso registrado ainda.</p>}
+                    <div className="space-y-1.5 max-h-96 overflow-y-auto">
+                        {(acessos || []).map(a => (
+                            <div key={a.id} className="flex items-center justify-between gap-2 p-2 bg-stone-50 rounded-lg text-xs">
+                                <span className="font-semibold text-stone-800">{a.nome || a.email}</span>
+                                <span className="text-stone-400">{new Date(a.criado_em).toLocaleString('pt-BR')}</span>
+                            </div>
+                        ))}
+                    </div>
+                </div>
+            );
+        }
+
+        // Painel Admin: só aparece na barra lateral depois de ativar o modo
+        // avançado em Configurações (role admin + lista oculta + MFA — ver
+        // ModoAvancadoCard). Ponto único pra reunir as ferramentas de
+        // administrador daqui pra frente — hoje tem três seções (online agora,
+        // histórico de acessos, feedback recebido); a próxima função nova entra
+        // como mais um bloco aqui embaixo, não espalhada em outra tela.
+        function PainelAdmin({ supabaseClient, onlineAgora }) {
+            return (
+                <div className="space-y-6">
+                    <div className="bg-white p-6 rounded-2xl shadow-sm border border-stone-200">
+                        <h2 className="text-2xl font-bold text-stone-900 flex items-center gap-2">
+                            <i className="fa-solid fa-user-shield text-amber-600"></i> Painel Admin
+                        </h2>
+                        <p className="text-stone-500 text-sm mt-1">Ferramentas de administrador — visível só nesta conta, só depois de ativar o modo avançado.</p>
+                    </div>
+
+                    <PainelOnlineAgora online={onlineAgora} />
+                    <PainelHistoricoAcessos supabaseClient={supabaseClient} />
+                    <PainelFeedbackRecebido supabaseClient={supabaseClient} />
+                </div>
+            );
+        }
+
+        function ConfiguracoesView({ session, supabaseClient, modoAvancadoAtivo, onModoAvancadoAtivado }) {
             const [seguro, setSeguro] = useState(null); // null=carregando | true=safeStorage (Electron) | false=localStorage (navegador)
             const [mostrarTermos, setMostrarTermos] = useState(false);
             const [mostrarConfigurarIA, setMostrarConfigurarIA] = useState(false);
@@ -5775,7 +5952,7 @@ OAB nº ${advogadoOab}`;
                     <SegurancaMfaCard supabaseClient={supabaseClient} />
 
                     {session?.user?.app_metadata?.role === 'admin' && (
-                        <ModoAvancadoCard session={session} supabaseClient={supabaseClient} />
+                        <ModoAvancadoCard session={session} supabaseClient={supabaseClient} ativo={modoAvancadoAtivo} onAtivar={onModoAvancadoAtivado} />
                     )}
 
                     {session?.user?.email?.toLowerCase() === EMAIL_AVALIADORA && (
