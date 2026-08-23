@@ -22,10 +22,6 @@
          fica contido mesmo se algo malicioso for injetado. Não é proteção
          completa, é a que dá pra ter sem reescrever o app inteiro pra um
          pipeline de build.
-
-         TESTE LOCAL (remover antes de commitar): http://localhost:8787
-         adicionado em connect-src pra local_api_teste.py (agente-jurisprudencia),
-         só usado quando localStorage.jurisTesteLocal === '1' (ver invocarFunction).
     -->
     <meta http-equiv="Content-Security-Policy" content="
         default-src 'self';
@@ -33,7 +29,7 @@
         style-src 'self' 'unsafe-inline' https://cdn.tailwindcss.com https://cdnjs.cloudflare.com https://fonts.googleapis.com;
         font-src 'self' data: https://fonts.gstatic.com https://cdnjs.cloudflare.com;
         img-src 'self' data: blob: https:;
-        connect-src 'self' https://esm.sh https://yenznpfqqocdkzlcfhdv.supabase.co wss://yenznpfqqocdkzlcfhdv.supabase.co http://localhost:8787;
+        connect-src 'self' https://esm.sh https://yenznpfqqocdkzlcfhdv.supabase.co wss://yenznpfqqocdkzlcfhdv.supabase.co;
         object-src 'none';
         base-uri 'self';
     ">
@@ -525,27 +521,6 @@
         // functions.invoke(), só que com error.message já sendo o texto real
         // quando a function devolveu um `{ error: "..." }` no corpo.
         async function invocarFunction(supabaseClient, nome, opcoes) {
-            // TESTE LOCAL — desvio temporário, não é código de produção.
-            // Ativa com localStorage.setItem('jurisTesteLocal', '1') + reload;
-            // desativa com localStorage.removeItem('jurisTesteLocal') + reload.
-            // Manda a chamada de busca-jurisprudencia pro servidor local de teste
-            // (agente-jurisprudencia/scripts/local_api_teste.py) em vez do Supabase,
-            // só pra visualizar a base nova de STF/STJ rodando dentro do app.
-            // Remover este bloco (e o comentário) antes de qualquer commit real.
-            if (nome === 'busca-jurisprudencia' && localStorage.getItem('jurisTesteLocal') === '1') {
-                try {
-                    const resp = await fetch('http://localhost:8787/busca-jurisprudencia', {
-                        method: 'POST',
-                        headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify(opcoes?.body || {}),
-                    });
-                    const corpo = await resp.json();
-                    if (!resp.ok) return { data: null, error: new Error(corpo.error || `HTTP ${resp.status}`) };
-                    return { data: corpo, error: null };
-                } catch (e) {
-                    return { data: null, error: new Error(`Servidor local de teste indisponível (rodou "python local_api_teste.py"?): ${e.message}`) };
-                }
-            }
             const resultado = await supabaseClient.functions.invoke(nome, opcoes);
             if (resultado.error && resultado.error.context) {
                 try {
@@ -1357,16 +1332,6 @@
             // "Painel Admin" na barra lateral, não só o card em Configurações.
             const [modoAvancadoAtivo, setModoAvancadoAtivo] = useState(false);
 
-            // Item de menu "Jurisprudência (teste local)" — nunca sai do ambiente
-            // de testes: só aparece com localStorage.jurisTesteLocal === '1' (a
-            // mesma flag do desvio em invocarFunction, ver comentário lá e em
-            // PainelTesteJurisprudenciaLocal). Lido uma vez no carregamento —
-            // ativar/desativar exige recarregar a página, igual o resto do fluxo
-            // de teste já documentado.
-            const [testeJurisAtivo] = useState(() => {
-                try { return localStorage.getItem('jurisTesteLocal') === '1'; } catch { return false; }
-            });
-
             // Presença: todo usuário logado (não só admin) anuncia "estou online"
             // enquanto o app está aberto, e TAMBÉM escuta o mesmo canal pra saber
             // quem mais está — um canal só, um único lugar (aqui), com o
@@ -1868,17 +1833,6 @@
                                     onClick={() => { setActiveTab('admin_painel'); setIsMobileMenuOpen(false); }}
                                 />
                             )}
-                            {testeJurisAtivo && (
-                                <>
-                                    <SidebarSectionLabel>Ambiente de Testes</SidebarSectionLabel>
-                                    <SidebarItem
-                                        icon="fa-flask"
-                                        label="Jurisprudência (teste)"
-                                        active={activeTab === 'jurisprudencia_teste'}
-                                        onClick={() => { setActiveTab('jurisprudencia_teste'); setIsMobileMenuOpen(false); }}
-                                    />
-                                </>
-                            )}
                         </nav>
 
                         {/* Profile Footer */}
@@ -2007,10 +1961,6 @@
 
                         {activeTab === 'admin_painel' && session.user.app_metadata?.role === 'admin' && modoAvancadoAtivo && (
                             <PainelAdmin supabaseClient={supabaseClient} onlineAgora={onlineAgora} />
-                        )}
-
-                        {activeTab === 'jurisprudencia_teste' && testeJurisAtivo && (
-                            <PainelTesteJurisprudenciaLocal />
                         )}
                     </main>
 
@@ -7286,124 +7236,6 @@ OAB nº ${advogadoOab}`;
                     </div>
                     {expandido && r.decisaoIntegral && (
                         <p className="text-xs text-stone-600 mt-2 pt-2 border-t whitespace-pre-line">{r.decisaoIntegral}</p>
-                    )}
-                </div>
-            );
-        }
-
-        // MENU DE TESTE — Jurisprudência (local): nunca sai do ambiente de testes.
-        // Só é montado quando localStorage.jurisTesteLocal === '1' (a mesma flag
-        // do desvio em invocarFunction — ver o comentário lá) — sem a flag, o item
-        // nem aparece na barra lateral, então isso nunca chega pra um usuário de
-        // verdade por acidente. Serve só pra testar ao vivo a base nova de
-        // TJRJ/STJ/STF (agente-jurisprudencia/scripts/local_api_teste.py,
-        // http://localhost:8787), sem precisar abrir a ficha de um processo real.
-        // Fala direto com o servidor local (não passa pelo Supabase) — o mesmo
-        // contrato {termo, uf} -> {resultados, fonte, mensagem} documentado em
-        // docs/agente-jurisprudencia/contrato-de-dados.md, mais um filtro de
-        // tribunal (opcional — só é enviado se o servidor local souber usar).
-        function PainelTesteJurisprudenciaLocal() {
-            const [termo, setTermo] = useState('');
-            const [uf, setUf] = useState('');
-            const [tribunal, setTribunal] = useState('');
-            const [carregando, setCarregando] = useState(false);
-            const [resultado, setResultado] = useState(null); // { resultados, fonte, mensagem } | null
-            const [erro, setErro] = useState(null);
-            const [mostrarBruto, setMostrarBruto] = useState(false);
-
-            const buscar = async (e) => {
-                e.preventDefault();
-                if (!termo.trim()) { setErro('Digite um termo de busca.'); return; }
-                setCarregando(true);
-                setErro(null);
-                setResultado(null);
-                try {
-                    const resp = await fetch('http://localhost:8787/busca-jurisprudencia', {
-                        method: 'POST',
-                        headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify({
-                            termo: termo.trim(),
-                            uf: uf.trim() || undefined,
-                            tribunal: tribunal || undefined,
-                        }),
-                    });
-                    const corpo = await resp.json();
-                    if (!resp.ok) throw new Error(corpo.error || `HTTP ${resp.status}`);
-                    setResultado(corpo);
-                } catch (err) {
-                    setErro(`Servidor local de teste indisponível (rodou "python local_api_teste.py"?): ${err.message}`);
-                } finally {
-                    setCarregando(false);
-                }
-            };
-
-            return (
-                <div className="space-y-6">
-                    <div className="bg-amber-50 border border-amber-300 p-6 rounded-2xl">
-                        <h2 className="text-2xl font-bold text-stone-900 flex items-center gap-2">
-                            <i className="fa-solid fa-flask text-amber-600"></i> Jurisprudência (teste local)
-                        </h2>
-                        <p className="text-stone-600 text-sm mt-1">
-                            Só pra testar a base nova de TJRJ/STJ/STF, servida por <code className="jc-mono">local_api_teste.py</code> em <code className="jc-mono">http://localhost:8787</code>.
-                            Este menu nunca aparece fora do ambiente de testes — some sozinho se tirar <code className="jc-mono">jurisTesteLocal</code> do localStorage (console: <code className="jc-mono">localStorage.removeItem('jurisTesteLocal')</code> + recarregar).
-                        </p>
-                    </div>
-
-                    <form onSubmit={buscar} className="bg-white p-5 rounded-2xl border border-stone-200 shadow-sm grid grid-cols-1 md:grid-cols-4 gap-3 items-end">
-                        <div className="md:col-span-2">
-                            <label className="block text-xs font-semibold text-stone-600 mb-1">Termo de busca</label>
-                            <input value={termo} onChange={e => setTermo(e.target.value)} placeholder="Ex: dano moral, honorários advocatícios..." className="w-full p-2.5 bg-stone-50 border border-stone-200 rounded-xl text-sm" />
-                        </div>
-                        <div>
-                            <label className="block text-xs font-semibold text-stone-600 mb-1">Tribunal</label>
-                            <select value={tribunal} onChange={e => setTribunal(e.target.value)} className="w-full p-2.5 bg-stone-50 border border-stone-200 rounded-xl text-sm">
-                                <option value="">Todos (TJRJ + STJ + STF)</option>
-                                <option value="TJRJ">Só TJRJ</option>
-                                <option value="STJ">Só STJ</option>
-                                <option value="STF">Só STF</option>
-                            </select>
-                        </div>
-                        <div>
-                            <label className="block text-xs font-semibold text-stone-600 mb-1">UF (opcional)</label>
-                            <input value={uf} onChange={e => setUf(e.target.value.toUpperCase())} placeholder="RJ" maxLength={2} className="w-full p-2.5 bg-stone-50 border border-stone-200 rounded-xl text-sm uppercase" />
-                        </div>
-                        <div className="md:col-span-4">
-                            <button type="submit" disabled={carregando} className="px-4 py-2.5 bg-amber-500 hover:bg-amber-600 disabled:opacity-50 text-stone-950 font-semibold rounded-xl text-sm flex items-center gap-2">
-                                {carregando ? <i className="fa-solid fa-spinner fa-spin"></i> : <i className="fa-solid fa-magnifying-glass"></i>} Buscar na base local
-                            </button>
-                        </div>
-                    </form>
-
-                    {erro && (
-                        <div className="p-4 bg-rose-50 text-rose-700 rounded-xl border border-rose-200 text-sm">
-                            <i className="fa-solid fa-triangle-exclamation mr-2"></i>{erro}
-                        </div>
-                    )}
-
-                    {resultado && (
-                        <div className="bg-white p-5 rounded-2xl border border-stone-200 shadow-sm space-y-4">
-                            <div className="flex items-center justify-between flex-wrap gap-2">
-                                <div>
-                                    <span className="text-xs font-bold px-2 py-0.5 rounded uppercase bg-emerald-100 text-emerald-700">fonte: {resultado.fonte || '—'}</span>
-                                    <p className="text-xs text-stone-500 mt-1">{resultado.mensagem}</p>
-                                </div>
-                                <button type="button" onClick={() => setMostrarBruto(v => !v)} className="text-xs font-semibold text-indigo-600 hover:underline">
-                                    {mostrarBruto ? 'Ocultar' : 'Ver'} resposta bruta (JSON)
-                                </button>
-                            </div>
-
-                            {mostrarBruto && (
-                                <pre className="bg-stone-900 text-emerald-300 text-[11px] p-4 rounded-xl overflow-x-auto max-h-96 overflow-y-auto">{JSON.stringify(resultado, null, 2)}</pre>
-                            )}
-
-                            {(!resultado.resultados || resultado.resultados.length === 0) && (
-                                <p className="text-sm text-stone-400">Nenhum resultado.</p>
-                            )}
-
-                            <div className="grid grid-cols-1 lg:grid-cols-2 gap-3">
-                                {(resultado.resultados || []).map((r, i) => <JurisprudenciaResultCard key={i} r={r} />)}
-                            </div>
-                        </div>
                     )}
                 </div>
             );
