@@ -22,12 +22,16 @@
 //   2. BYOK ("bring your own key"): o app manda `apiKey` (+ `provedor`) — a
 //      chave de que o(a) próprio(a) advogado(a) conectou em Configurações. Nesse
 //      caso não há limite nem contagem: o custo é 100% dela, na conta dela.
-//      Provedores aceitos em BYOK: "gemini", "anthropic" e "openai".
+//      Provedores aceitos em BYOK: "gemini", "anthropic", "openai" e "deepseek".
 //
-// IMPORTANTE: não existe fallback pra uma chave da casa pra Anthropic nem pra
-// OpenAI — os dois só estão disponíveis via BYOK. Isso existe de propósito:
-// era o principal risco de custo (modelos pagos por token desde a primeira
-// chamada, diferente do free tier do Gemini).
+// IMPORTANTE: não existe fallback pra uma chave da casa pra Anthropic, OpenAI
+// nem DeepSeek — os três só estão disponíveis via BYOK. Isso existe de
+// propósito: era o principal risco de custo (modelos pagos por token desde a
+// primeira chamada, diferente do free tier do Gemini). Verificado na prática
+// (docs oficiais, checado ao adicionar DeepSeek): a API do DeepSeek não tem
+// free tier nenhum, é 100% paga por token — mesma categoria de risco de custo
+// que Anthropic/OpenAI, por isso entra do mesmo jeito (BYOK), não como um
+// segundo provedor gratuito da casa.
 //
 // Todo texto gerado é sempre uma SUGESTÃO/MINUTA — precisa de revisão humana
 // antes de qualquer uso real, e a função deixa isso explícito na resposta.
@@ -58,7 +62,14 @@ const MODELOS_ANTHROPIC_PERMITIDOS = ["claude-opus-5", "claude-sonnet-5", "claud
 const MODELO_OPENAI_PADRAO = "gpt-5.1";
 const MODELOS_OPENAI_PERMITIDOS = ["gpt-5.1", "gpt-5.1-mini"];
 
-const PROVEDORES_VALIDOS = ["gemini", "anthropic", "openai"] as const;
+// A API do DeepSeek fala o formato OpenAI (mesmo SDK "openai", só trocando
+// baseURL — documentado assim pela própria DeepSeek), por isso não precisa de
+// um SDK novo. "flash" é a linha rápida/barata deles; "pro" é a mais forte.
+const DEEPSEEK_BASE_URL = "https://api.deepseek.com";
+const MODELO_DEEPSEEK_PADRAO = "deepseek-v4-flash";
+const MODELOS_DEEPSEEK_PERMITIDOS = ["deepseek-v4-flash", "deepseek-v4-pro"];
+
+const PROVEDORES_VALIDOS = ["gemini", "anthropic", "openai", "deepseek"] as const;
 type Provedor = (typeof PROVEDORES_VALIDOS)[number];
 
 const TAREFAS_VALIDAS = ["minuta", "resumo", "proximo_passo", "modelo_documento", "sugestao_prazo", "revisar_texto", "assistente_editor"] as const;
@@ -176,7 +187,7 @@ Deno.serve(async (req: Request) => {
         {
           error:
             `Você atingiu o limite gratuito de ${LIMITE_GRATUITO_MENSAL} gerações este mês. ` +
-            'Conecte sua própria chave (Gemini ou Anthropic) em "Configurações" para uso ilimitado, ou aguarde o próximo mês.',
+            'Conecte sua própria chave (Gemini, Claude, ChatGPT ou DeepSeek) em "Configurações" para uso ilimitado, ou aguarde o próximo mês.',
           limiteAtingido: true,
         },
         429,
@@ -224,6 +235,42 @@ Deno.serve(async (req: Request) => {
 
       const openai = new OpenAI({ apiKey: chaveByok as string });
       const resposta = await openai.chat.completions.create({
+        model: modelo,
+        max_completion_tokens: 4000,
+        messages: [
+          { role: "system", content: SYSTEM_PROMPT },
+          { role: "user", content: userPrompt },
+        ],
+      });
+
+      const escolha = resposta.choices[0];
+      if (escolha?.finish_reason === "content_filter") {
+        return jsonResponse(
+          { error: "A IA recusou-se a gerar este conteúdo (filtro de conteúdo). Revise o pedido e tente novamente com mais contexto." },
+          422,
+        );
+      }
+
+      textoGerado = (escolha?.message?.content ?? "").trim();
+      if (!textoGerado) {
+        return jsonResponse(
+          { error: "A IA não retornou texto. Tente reformular o pedido." },
+          422,
+        );
+      }
+      if (resposta.usage) {
+        tokensUsados = { entrada: resposta.usage.prompt_tokens, saida: resposta.usage.completion_tokens };
+      }
+    } else if (provedor === "deepseek") {
+      const modelo = MODELOS_DEEPSEEK_PERMITIDOS.includes(body.modelo ?? "")
+        ? (body.modelo as string)
+        : MODELO_DEEPSEEK_PADRAO;
+      modeloUsado = modelo;
+
+      // Mesmo SDK "openai", só apontando pra baseURL da DeepSeek — é o jeito
+      // oficialmente documentado por eles de usar a API (formato compatível).
+      const deepseek = new OpenAI({ apiKey: chaveByok as string, baseURL: DEEPSEEK_BASE_URL });
+      const resposta = await deepseek.chat.completions.create({
         model: modelo,
         max_completion_tokens: 4000,
         messages: [

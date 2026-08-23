@@ -22,6 +22,10 @@
          fica contido mesmo se algo malicioso for injetado. Não é proteção
          completa, é a que dá pra ter sem reescrever o app inteiro pra um
          pipeline de build.
+
+         TESTE LOCAL (remover antes de commitar): http://localhost:8787
+         adicionado em connect-src pra local_api_teste.py (agente-jurisprudencia),
+         só usado quando localStorage.jurisTesteLocal === '1' (ver invocarFunction).
     -->
     <meta http-equiv="Content-Security-Policy" content="
         default-src 'self';
@@ -29,7 +33,7 @@
         style-src 'self' 'unsafe-inline' https://cdn.tailwindcss.com https://cdnjs.cloudflare.com https://fonts.googleapis.com;
         font-src 'self' data: https://fonts.gstatic.com https://cdnjs.cloudflare.com;
         img-src 'self' data: blob: https:;
-        connect-src 'self' https://esm.sh https://yenznpfqqocdkzlcfhdv.supabase.co wss://yenznpfqqocdkzlcfhdv.supabase.co;
+        connect-src 'self' https://esm.sh https://yenznpfqqocdkzlcfhdv.supabase.co wss://yenznpfqqocdkzlcfhdv.supabase.co http://localhost:8787;
         object-src 'none';
         base-uri 'self';
     ">
@@ -521,6 +525,27 @@
         // functions.invoke(), só que com error.message já sendo o texto real
         // quando a function devolveu um `{ error: "..." }` no corpo.
         async function invocarFunction(supabaseClient, nome, opcoes) {
+            // TESTE LOCAL — desvio temporário, não é código de produção.
+            // Ativa com localStorage.setItem('jurisTesteLocal', '1') + reload;
+            // desativa com localStorage.removeItem('jurisTesteLocal') + reload.
+            // Manda a chamada de busca-jurisprudencia pro servidor local de teste
+            // (agente-jurisprudencia/scripts/local_api_teste.py) em vez do Supabase,
+            // só pra visualizar a base nova de STF/STJ rodando dentro do app.
+            // Remover este bloco (e o comentário) antes de qualquer commit real.
+            if (nome === 'busca-jurisprudencia' && localStorage.getItem('jurisTesteLocal') === '1') {
+                try {
+                    const resp = await fetch('http://localhost:8787/busca-jurisprudencia', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify(opcoes?.body || {}),
+                    });
+                    const corpo = await resp.json();
+                    if (!resp.ok) return { data: null, error: new Error(corpo.error || `HTTP ${resp.status}`) };
+                    return { data: corpo, error: null };
+                } catch (e) {
+                    return { data: null, error: new Error(`Servidor local de teste indisponível (rodou "python local_api_teste.py"?): ${e.message}`) };
+                }
+            }
             const resultado = await supabaseClient.functions.invoke(nome, opcoes);
             if (resultado.error && resultado.error.context) {
                 try {
@@ -2052,8 +2077,9 @@
         // Passo a passo por provedor pra conectar a própria chave de IA — visual
         // inspirado nos protótipos de referência (files/juriscontrol_tela_tutorial_chave.html
         // e juriscontrol_tela_inicial.html), ligado na infraestrutura que já existe
-        // (setSecret/getSecret). Só Claude e Gemini: são os dois provedores que a
-        // Edge Function criar-peca-ia realmente sabe usar.
+        // (setSecret/getSecret). Os quatro provedores que a Edge Function
+        // criar-peca-ia sabe usar: Gemini (também é o gratuito da casa), Claude,
+        // ChatGPT e DeepSeek (estes três só via chave própria).
         const DADOS_TUTORIAL_IA = {
             gemini: {
                 nome: 'Gemini (Google)',
@@ -2088,14 +2114,33 @@
                     ['Crie e copie a chave', 'Clique em criar nova chave secreta e copie o valor gerado (começa com sk-).'],
                 ],
             },
+            deepseek: {
+                nome: 'DeepSeek',
+                chave: 'DEEPSEEK_API_KEY',
+                console: 'platform.deepseek.com',
+                consoleUrl: 'https://platform.deepseek.com/api_keys',
+                passos: [
+                    ['Acesse a plataforma da DeepSeek', 'Entre em platform.deepseek.com com sua conta (crie uma se ainda não tiver).'],
+                    ['Vá em "API keys"', 'No menu lateral, abra a seção de chaves de API.'],
+                    ['Crie e copie a chave', 'Clique em criar nova chave e copie o valor gerado (começa com sk-).'],
+                ],
+            },
         };
 
         function ConfigurarIAModal({ onClose }) {
             const [provedor, setProvedor] = useState('gemini');
             const [chave, setChave] = useState('');
             const [salvando, setSalvando] = useState(false);
+            const [removendo, setRemovendo] = useState(false);
             const [mensagem, setMensagem] = useState(null);
+            // provedor -> chave (string) | null | undefined (undefined = ainda carregando)
+            const [conectadas, setConectadas] = useState({});
             const dados = DADOS_TUTORIAL_IA[provedor];
+            const totalConectadas = Object.values(conectadas).filter(Boolean).length;
+            const preferenciaAtual = obterPreferenciaProvedor();
+
+            const recarregarConectadas = () => { chavesIAConectadas().then(setConectadas); };
+            useEffect(recarregarConectadas, []);
 
             const salvar = async () => {
                 if (!chave.trim()) { setMensagem({ tipo: 'erro', texto: 'Cole sua chave antes de salvar.' }); return; }
@@ -2105,9 +2150,19 @@
                 if (resultado.ok) {
                     setMensagem({ tipo: 'sucesso', texto: `Chave do ${dados.nome} conectada com sucesso! Gerações ilimitadas a partir de agora.` });
                     setChave('');
+                    recarregarConectadas();
                 } else {
                     setMensagem({ tipo: 'erro', texto: resultado.erro || 'Falha ao salvar.' });
                 }
+            };
+
+            const remover = async () => {
+                setRemovendo(true);
+                await deleteSecret(dados.chave);
+                setRemovendo(false);
+                setMensagem({ tipo: 'sucesso', texto: `Chave do ${dados.nome} desconectada.` });
+                if (obterPreferenciaProvedor() === provedor) salvarPreferenciaProvedor(null);
+                recarregarConectadas();
             };
 
             return (
@@ -2117,27 +2172,57 @@
                             <h3 className="font-bold text-lg text-stone-900">Configure sua IA</h3>
                             <button onClick={onClose} aria-label="Fechar" className="text-stone-500 hover:text-stone-600"><i className="fa-solid fa-xmark text-lg"></i></button>
                         </div>
-                        <p className="text-xs text-stone-500">Conecte sua própria chave pra ter gerações ilimitadas. O plano gratuito (Gemini da casa, 10 gerações/mês) já funciona sem nada disso.</p>
+                        <p className="text-xs text-stone-500">Conecte sua própria chave pra ter gerações ilimitadas. O plano gratuito (Gemini da casa, 10 gerações/mês) já funciona sem nada disso — Claude, ChatGPT e DeepSeek só funcionam com chave própria (não têm versão gratuita da casa).</p>
 
-                        <div className="flex bg-stone-100 rounded-xl p-1">
+                        {totalConectadas >= 2 && (
+                            <div className="bg-amber-50 border border-amber-200 rounded-xl p-3 space-y-1.5">
+                                <p className="text-xs font-bold text-amber-800">Qual usar por padrão</p>
+                                <p className="text-[11px] text-amber-700 -mt-1">Você tem mais de uma chave conectada — escolha qual entra em ação.</p>
+                                <div className="space-y-1 pt-1">
+                                    {Object.keys(DADOS_TUTORIAL_IA).filter(p => conectadas[p]).map(p => (
+                                        <label key={p} className="flex items-center gap-2 text-xs text-stone-700 cursor-pointer">
+                                            <input
+                                                type="radio"
+                                                name="provedor-preferido"
+                                                checked={(preferenciaAtual || Object.keys(DADOS_TUTORIAL_IA).filter(x => conectadas[x])[0]) === p}
+                                                onChange={() => { salvarPreferenciaProvedor(p); setMensagem(null); }}
+                                            />
+                                            {DADOS_TUTORIAL_IA[p].nome}
+                                        </label>
+                                    ))}
+                                </div>
+                            </div>
+                        )}
+
+                        <div className="flex bg-stone-100 rounded-xl p-1 flex-wrap gap-1">
                             {Object.keys(DADOS_TUTORIAL_IA).map(p => (
-                                <button key={p} type="button" onClick={() => { setProvedor(p); setMensagem(null); }} className={`flex-1 py-2 rounded-lg text-sm font-semibold transition ${provedor === p ? 'bg-white shadow-sm text-stone-900' : 'text-stone-500'}`}>
+                                <button key={p} type="button" onClick={() => { setProvedor(p); setMensagem(null); }} className={`flex-1 min-w-[45%] py-2 rounded-lg text-sm font-semibold transition flex items-center justify-center gap-1.5 ${provedor === p ? 'bg-white shadow-sm text-stone-900' : 'text-stone-500'}`}>
+                                    {conectadas[p] && <span className="w-1.5 h-1.5 rounded-full bg-emerald-500" title="Conectado"></span>}
                                     {DADOS_TUTORIAL_IA[p].nome}
                                 </button>
                             ))}
                         </div>
 
-                        <div className="space-y-2">
-                            {dados.passos.map((s, i) => (
-                                <div key={i} className="flex gap-3 bg-stone-50 border border-stone-200 rounded-xl p-3">
-                                    <div className="w-6 h-6 rounded-full bg-amber-500 text-stone-950 font-bold text-xs flex items-center justify-center flex-shrink-0">{i + 1}</div>
-                                    <div>
-                                        <h4 className="text-xs font-bold text-stone-800">{s[0]}</h4>
-                                        <p className="text-[11px] text-stone-500 mt-0.5">{s[1]}</p>
+                        {conectadas[provedor] ? (
+                            <div className="p-3 bg-emerald-50 border border-emerald-200 rounded-xl text-xs text-emerald-800 flex items-center justify-between gap-2">
+                                <span><i className="fa-solid fa-circle-check mr-1.5"></i>Chave do {dados.nome} já conectada.</span>
+                                <button onClick={remover} disabled={removendo} className="font-semibold text-rose-600 hover:underline disabled:opacity-50 whitespace-nowrap">
+                                    {removendo ? 'Removendo...' : 'Desconectar'}
+                                </button>
+                            </div>
+                        ) : (
+                            <div className="space-y-2">
+                                {dados.passos.map((s, i) => (
+                                    <div key={i} className="flex gap-3 bg-stone-50 border border-stone-200 rounded-xl p-3">
+                                        <div className="w-6 h-6 rounded-full bg-amber-500 text-stone-950 font-bold text-xs flex items-center justify-center flex-shrink-0">{i + 1}</div>
+                                        <div>
+                                            <h4 className="text-xs font-bold text-stone-800">{s[0]}</h4>
+                                            <p className="text-[11px] text-stone-500 mt-0.5">{s[1]}</p>
+                                        </div>
                                     </div>
-                                </div>
-                            ))}
-                        </div>
+                                ))}
+                            </div>
+                        )}
 
                         <a href={dados.consoleUrl} target="_blank" rel="noreferrer" className="w-full flex items-center justify-center gap-2 py-2.5 border border-amber-400 text-amber-700 rounded-xl text-sm font-semibold hover:bg-amber-50">
                             <i className="fa-solid fa-arrow-up-right-from-square"></i> Abrir {dados.console}
@@ -2150,7 +2235,7 @@
                         )}
 
                         <div>
-                            <label className="block text-xs font-semibold text-stone-600 mb-1">Cole sua chave aqui</label>
+                            <label className="block text-xs font-semibold text-stone-600 mb-1">{conectadas[provedor] ? 'Trocar por outra chave' : 'Cole sua chave aqui'}</label>
                             <input type="password" value={chave} onChange={e => setChave(e.target.value)} placeholder="A chave só aparece uma vez no site do provedor" className="w-full p-2.5 bg-stone-50 border border-stone-200 rounded-xl text-sm font-mono" />
                         </div>
 
@@ -4048,18 +4133,47 @@ OAB nº ${advogadoOab}`;
             "Outro (descrever nas instruções)",
         ];
 
-        // Escolhe qual provedor/chave usar numa chamada de IA: prioriza uma chave
-        // Anthropic conectada pelo usuário, depois ChatGPT, depois Gemini, e só
-        // por último cai pro plano gratuito (sem apiKey — a function usa o Gemini
-        // da casa e conta na cota mensal). Gemini fica por último de propósito —
-        // é o único provedor com plano gratuito, os outros dois são BYOK puro.
-        async function resolverProvedorIA() {
-            const [chaveClaude, chaveOpenai, chaveGemini] = await Promise.all([
-                getSecret('ANTHROPIC_API_KEY'), getSecret('OPENAI_API_KEY'), getSecret('GEMINI_API_KEY'),
+        // Preferência de qual IA usar quando há mais de uma chave própria conectada
+        // — escolhida em "Configure sua IA" (ConfigurarIAModal). Só um nome de
+        // provedor salvo no dispositivo, nada sensível (a chave em si mora no
+        // safeStorage/secrets, não aqui).
+        const PREFERENCIA_PROVEDOR_KEY = 'jc_provedor_ia_preferido';
+
+        function obterPreferenciaProvedor() {
+            try { return localStorage.getItem(PREFERENCIA_PROVEDOR_KEY); } catch { return null; }
+        }
+
+        function salvarPreferenciaProvedor(provedor) {
+            try {
+                if (provedor) localStorage.setItem(PREFERENCIA_PROVEDOR_KEY, provedor);
+                else localStorage.removeItem(PREFERENCIA_PROVEDOR_KEY);
+            } catch { /* ignora */ }
+        }
+
+        // Devolve todas as chaves próprias já conectadas (provedor -> chave|null) —
+        // usado tanto por resolverProvedorIA quanto pelo ConfigurarIAModal, pra
+        // mostrar o status "conectado" de cada aba e montar o seletor de qual usar.
+        async function chavesIAConectadas() {
+            const [anthropic, openai, gemini, deepseek] = await Promise.all([
+                getSecret('ANTHROPIC_API_KEY'), getSecret('OPENAI_API_KEY'), getSecret('GEMINI_API_KEY'), getSecret('DEEPSEEK_API_KEY'),
             ]);
-            if (chaveClaude) return { apiKey: chaveClaude, provedor: 'anthropic' };
-            if (chaveOpenai) return { apiKey: chaveOpenai, provedor: 'openai' };
-            if (chaveGemini) return { apiKey: chaveGemini, provedor: 'gemini' };
+            return { anthropic, openai, gemini, deepseek };
+        }
+
+        // Se houver mais de uma chave própria conectada, usa a preferência salva em
+        // Configurações — se ela não estiver configurada (ou nenhuma preferência
+        // ainda), cai numa ordem padrão só como desempate. Sem nenhuma chave
+        // própria, devolve provedor:null (a Edge Function usa o Gemini gratuito
+        // da casa automaticamente nesse caso).
+        async function resolverProvedorIA() {
+            const disponiveis = await chavesIAConectadas();
+            const preferido = obterPreferenciaProvedor();
+            if (preferido && disponiveis[preferido]) {
+                return { apiKey: disponiveis[preferido], provedor: preferido };
+            }
+            for (const p of ['anthropic', 'openai', 'deepseek', 'gemini']) {
+                if (disponiveis[p]) return { apiKey: disponiveis[p], provedor: p };
+            }
             return { apiKey: null, provedor: null };
         }
 
