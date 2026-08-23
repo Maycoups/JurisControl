@@ -3,6 +3,30 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <!-- Content-Security-Policy escopada aos hosts que este app de verdade usa
+         (levantado direto do código, não copiado de checklist genérico) — ver
+         docs/arquitetura/ARQUITETURA.md pra manutenção futura desta lista.
+         'unsafe-eval' e 'unsafe-inline' em script-src são um custo real e
+         consciente da arquitetura zero-build (Babel Standalone transpila e
+         executa o JSX no navegador; tailwind.config também é inline) — sem
+         eles o app não sobe. Isso significa que esta CSP não impede execução
+         de script injetado via XSS (o vetor clássico que 'unsafe-eval'/
+         'unsafe-inline' normalmente bloqueariam); o que ela BLOQUEIA de
+         verdade é carregar script/conectar a qualquer host fora desta lista —
+         fica contido mesmo se algo malicioso for injetado. Não é proteção
+         completa, é a que dá pra ter sem reescrever o app inteiro pra um
+         pipeline de build.
+    -->
+    <meta http-equiv="Content-Security-Policy" content="
+        default-src 'self';
+        script-src 'self' 'unsafe-inline' 'unsafe-eval' https://cdn.tailwindcss.com https://unpkg.com https://cdn.jsdelivr.net https://esm.sh;
+        style-src 'self' 'unsafe-inline' https://cdn.tailwindcss.com https://cdnjs.cloudflare.com https://fonts.googleapis.com;
+        font-src 'self' data: https://fonts.gstatic.com https://cdnjs.cloudflare.com;
+        img-src 'self' data: blob: https:;
+        connect-src 'self' https://esm.sh https://yenznpfqqocdkzlcfhdv.supabase.co wss://yenznpfqqocdkzlcfhdv.supabase.co;
+        object-src 'none';
+        base-uri 'self';
+    ">
     <title>JurisControl - Gestão para Advogados Independentes</title>
     <!-- Tailwind CSS CDN: de propósito SEM defer. Ele injeta o CSS de forma
          assíncrona por dentro (mesmo bloqueando o parser aqui); se atrasar o
