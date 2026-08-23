@@ -1,43 +1,59 @@
 JurisControl - Termos de Uso e Política de Privacidade
 Conformidade com a Lei Geral de Proteção de Dados (Lei nº 13.709/2018 - LGPD)
-1. Termos de Uso
-1.1. Aceitação dos Termos
-Ao acessar ou utilizar a plataforma JurisControl ("Software"), o usuário ("Advogado" ou "Usuário") concorda expressamente com os presentes Termos de Uso. O uso contínuo da plataforma caracteriza a aceitação plena e sem reservas de todas as condições aqui estabelecidas.
-1.2. Objeto e Licença de Uso
-O JurisControl é um software de gestão jurídica voltado para advogados e escritórios independentes, oferecendo funcionalidades de acompanhamento processual, gestão de clientes, controle financeiro e integração com APIs públicas de tribunais (como TJRJ e DataJud/CNJ). O Software é concedido sob licença de uso limitada, não exclusiva, revogável e intransferível.
-1.3. Responsabilidades do Usuário
-Manter o sigilo de suas credenciais de acesso (e-mail, senha e tokens de API).
-Garantir a veracidade e legalidade dos dados de clientes e processos inseridos no sistema.
-Utilizar as integrações de consulta pública (TJRJ/DataJud) em estrita observância à legislação vigente e aos limites éticos da OAB.
-1.4. Limitação de Responsabilidade
-O JurisControl atua como ferramenta auxiliar de gestão e consulta. O Software não substitui a conferência oficial dos prazos e andamentos nos diários oficiais e sistemas dos tribunais, cabendo exclusivamente ao Usuário a responsabilidade pelo cumprimento de seus prazos processuais.
-2. Política de Privacidade (LGPD)
-2.1. Papéis na Proteção de Dados
-Nos termos da Lei nº 13.709/2018 (LGPD):
-Controlador: O Usuário (Advogado ou Escritório) em relação aos dados pessoais de seus clientes inseridos na plataforma.
-Operador: O JurisControl, que processa os dados em nome do Controlador para prestar os serviços contratados.
-2.2. Categorias de Dados Tratados e Finalidades
-Categoria de Dado
-Dados Coletados
-Base Legal (LGPD)
-Finalidade do Tratamento
- 
-Dados do Advogado
-Nome, CPF, OAB/UF, e-mail, senha criptografada
-Execução de Contrato (Art. 7º, V)
-Autenticação, gestão da conta e liberação de acesso às funcionalidades.
-Dados dos Clientes
-Nome, CPF/CNPJ, e-mail, telefone, contrato
-Execução de Contrato / Cumprimento de Obrigação Legal
-Gestão de carteira de clientes, vinculação a processos e emissão de alertas.
-Dados Processuais
-Número CNJ, classe, assunto, órgão julgador, histórico
-Exercício Regular de Direitos / Dados Públicos (Art. 7º, VI)
-Exibição no painel de controle, monitoramento e geração de documentos.
+Última atualização: agosto de 2026.
 
-2.3. Segurança e Armazenamento dos Dados
-Todos os dados são armazenados em infraestrutura segura com encriptação em trânsito (TLS/HTTPS) e em repouso. O acesso à base de dados é protegido por políticas de Row Level Security (RLS), garantindo que cada Usuário acesse estritamente os seus próprios registros.
-2.4. Direitos dos Titulares de Dados
-Os titulares dos dados têm o direito de solicitar a confirmação do tratamento, acesso, correção, anonimização, eliminação ou portabilidade de seus dados pessoais, mediante solicitação formal ao Encarregado pelo Tratamento de Dados (DPO) da plataforma.
-2.5. Alterações nesta Política
-Esta Política pode ser atualizada periodicamente para refletir melhorias no sistema ou adequações regulatórias. Notificações sobre alterações relevantes serão enviadas aos Usuários cadastrados.
+1. Aspectos Gerais e Objeto
+1.1. Compromisso com a Privacidade e Segurança
+Pelos presentes Termos, o JurisControl reafirma seus compromissos com a privacidade e segurança no tratamento das informações coletadas dos clientes e usuários dos Meios Digitais, bem como dos contratantes dos Produtos ofertados.
+1.2. Objeto
+O JurisControl é um software de gestão jurídica voltado para advogados e escritórios independentes, oferecendo funcionalidades de acompanhamento processual, gestão de clientes, controle financeiro e integração com fontes públicas de tribunais - hoje, o DJEN (Diário de Justiça Eletrônico Nacional, mantido pelo CNJ), o sistema público de jurisprudência (eproc) do TJRJ e o DataJud (CNJ). O Software é concedido sob licença de uso limitada, não exclusiva, revogável e intransferível.
+1.3. Abrangência e Alterações
+Estes Termos aplicam-se a todos os Usuários, administradores e fornecedores que venham a ter acesso aos Meios Digitais. A Empresa reserva-se o direito de alterar e atualizar os presentes Termos, mediante notificação aos Usuários.
+
+2. Aceite aos Termos
+2.1. Leitura e Consentimento
+O Usuário deve ler, atenta e integralmente, o teor destes Termos - disponíveis a qualquer momento em Configurações - e manifestar seu consentimento livre, expresso, informado e inequívoco. O uso continuado da plataforma após essa leitura caracteriza a aceitação plena e sem reservas das condições aqui estabelecidas.
+2.2. Recusa aos Termos
+A não concordância do Usuário implicará no cancelamento ou inviabilizará o acesso aos conteúdos e serviços disponibilizados.
+2.3. Revogação do Consentimento
+O Usuário compreende que tal consentimento poderá ser revogado a qualquer momento, mediante solicitação, oportunidade em que os seus dados (e de seus clientes) serão excluídos, exceto caso seu armazenamento deva ser feito por obrigação legal.
+
+3. Informações dos Usuários e LGPD
+3.1. Papéis na Proteção de Dados
+O JurisControl atua primariamente como Operador de dados, enquanto o Advogado/Escritório atua como Controlador dos dados de seus respectivos clientes, nos termos da Lei nº 13.709/2018 (LGPD).
+3.2. Categorias de Dados Tratados e Finalidades
+Categoria de Dado | Dados Coletados | Finalidade do Tratamento
+Dados do Advogado | Nome, CPF, número da OAB, e-mail e credenciais de acesso (criptografadas) | Execução de contrato, autenticação e faturamento.
+Dados dos Clientes do Advogado | Nome, CPF/CNPJ, e-mail, telefone e contratos | Gestão de carteira de clientes - inseridos e controlados pelo próprio Advogado.
+Dados Processuais | Número CNJ, classe, assunto, movimentações e partes | Acompanhamento automatizado via DJEN/eproc (TJRJ) e DataJud (CNJ), exibido em painel.
+
+4. Tratamento, Segurança e Armazenamento
+4.1. Ambiente de Armazenamento
+Todas as informações fornecidas e geradas são recebidas e armazenadas em ambiente seguro na base de dados em nuvem (Supabase), com proteção estrita de Row Level Security (RLS) para garantir o isolamento dos dados de cada escritório.
+4.2. Medidas Técnicas e Administrativas
+O JurisControl compromete-se a adotar as medidas técnicas e administrativas aptas a proteger os dados pessoais, observando as diretrizes do Decreto nº 8.771/2016, incluindo:
+Criptografia de senhas e de todo o tráfego (HTTPS/TLS).
+Mecanismos de autenticação rigorosos (tokens JWT, com suporte a verificação em duas etapas).
+Manutenção de registro de acessos e ações críticas no sistema.
+
+5. Direitos do Usuário (Titular dos Dados)
+5.1. Direitos Garantidos
+O JurisControl garante ao Usuário, no que diz respeito ao processamento de seus dados pessoais, os direitos de: confirmação da existência de tratamento, acesso, correção, anonimização, portabilidade, eliminação de dados e revogação do consentimento, mediante solicitação pelos canais oficiais.
+
+6. Isenções de Responsabilidade e Prazos Processuais
+6.1. Isenções Gerais
+Além das isenções padrão, o Usuário se declara ciente de que o JurisControl não será responsável por:
+Indisponibilidade, erro ou falha nas integrações com fontes públicas dos tribunais (como o DJEN, o eproc do TJRJ ou a API do DataJud/CNJ), ou indisponibilidade do próprio sistema do tribunal.
+Danos decorrentes de falhas de conexão de internet ou indisponibilidade temporária dos servidores em nuvem.
+Dados e informações inverídicas inseridas pelo próprio Usuário.
+6.2. Aviso Crítico sobre Prazos Judiciais
+O JurisControl atua exclusivamente como ferramenta auxiliar de gestão. O Software não substitui a conferência oficial e legal dos prazos e andamentos nos diários oficiais e sistemas dos tribunais. O Advogado/Usuário é o único e exclusivo responsável pela contagem, gestão e cumprimento de seus prazos processuais fatais.
+
+7. Sanções e Legislação
+7.1. Suspensão de Acesso
+A Empresa poderá suspender temporária ou definitivamente o acesso do Usuário caso haja descumprimento destes Termos, suspeita de fraude, ou uso indevido das integrações com fontes públicas de tribunais em desacordo com as normativas aplicáveis.
+7.2. Foro
+Fica eleito o foro de domicílio do Usuário (ou da comarca de atuação principal do escritório) para dirimir quaisquer dúvidas oriundas do presente Termo.
+
+8. Declaração Final
+O uso continuado do JurisControl após a leitura destes Termos caracteriza o reconhecimento expresso de que o Usuário os leu, compreendeu e é legalmente competente para aderir às condições aqui previstas.
