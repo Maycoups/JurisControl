@@ -3,6 +3,12 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="description" content="JurisControl — gestão jurídica completa para advogados independentes: processos, clientes, prazos, financeiro, integração com tribunais e geração de peças com IA.">
+    <!-- Favicon inline (SVG data URI, balança da marca em âmbar) — sem isso o
+         navegador pede /favicon.ico sozinho, dá 404 e vira um "erro no
+         console" real que o Lighthouse pega em Práticas recomendadas
+         (achado real de hoje: era exatamente isso, nada relacionado à CSP). -->
+    <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20viewBox%3D%220%200%2032%2032%22%3E%20%3Crect%20width%3D%2232%22%20height%3D%2232%22%20rx%3D%227%22%20fill%3D%22%23f59e0b%22%2F%3E%20%3Cg%20stroke%3D%22%23ffffff%22%20stroke-width%3D%222%22%20stroke-linecap%3D%22round%22%20stroke-linejoin%3D%22round%22%20fill%3D%22none%22%3E%20%3Cline%20x1%3D%2216%22%20y1%3D%227%22%20x2%3D%2216%22%20y2%3D%2224%22%2F%3E%20%3Cline%20x1%3D%228%22%20y1%3D%2211%22%20x2%3D%2224%22%20y2%3D%2211%22%2F%3E%20%3Cpath%20d%3D%22M8%2011%20L5%2017%20A3.5%203.5%200%200%200%2011%2017%20Z%22%2F%3E%20%3Cpath%20d%3D%22M24%2011%20L21%2017%20A3.5%203.5%200%200%200%2027%2017%20Z%22%2F%3E%20%3Cline%20x1%3D%2212%22%20y1%3D%2225%22%20x2%3D%2220%22%20y2%3D%2225%22%2F%3E%20%3C%2Fg%3E%20%3C%2Fsvg%3E">
     <!-- Content-Security-Policy escopada aos hosts que este app de verdade usa
          (levantado direto do código, não copiado de checklist genérico) — ver
          docs/arquitetura/ARQUITETURA.md pra manutenção futura desta lista.
@@ -99,6 +105,31 @@
     </script>
 
     <style>
+        /* FontAwesome (cdnjs) declara as duas famílias que este app usa (solid,
+           brands) com font-display:block — o navegador esconde o glyph até a
+           fonte terminar de baixar, em vez de mostrar algo já e trocar depois.
+           Essas duas regras, carregadas DEPOIS do <link> do FontAwesome no
+           <head>, ganham a prioridade do navegador (mesma família+peso, última
+           declaração vence) e trocam pra font-display:swap — ícone aparece na
+           hora (com um fallback nada elegante por uma fração de segundo) em vez
+           de ficar invisível. Achado real do Lighthouse (economia ~40ms).
+           Mesmas URLs de fonte do FontAwesome, só copiadas em vez de relativas
+           (o @font-face original usa "../webfonts/", que só resolve a partir do
+           próprio CSS deles). */
+        @font-face {
+            font-family: "Font Awesome 6 Free";
+            font-style: normal;
+            font-weight: 900;
+            font-display: swap;
+            src: url(https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/webfonts/fa-solid-900.woff2) format("woff2");
+        }
+        @font-face {
+            font-family: "Font Awesome 6 Brands";
+            font-style: normal;
+            font-weight: 400;
+            font-display: swap;
+            src: url(https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/webfonts/fa-brands-400.woff2) format("woff2");
+        }
         body {
             font-family: 'IBM Plex Sans', sans-serif;
             background-color: #FBFAF6;
@@ -183,7 +214,7 @@
         .dark .text-stone-700 { color: #cbd5e1; }
         .dark .text-stone-600 { color: #94a3b8; }
         .dark .text-stone-500 { color: #94a3b8; }
-        .dark .text-stone-400 { color: #64748b; }
+        .dark .text-stone-500 { color: #64748b; }
         .dark .border-stone-200 { border-color: #334155; }
         .dark .border-stone-100 { border-color: #1e293b; }
         .dark input, .dark select, .dark textarea { color-scheme: dark; }
@@ -417,9 +448,9 @@
                         <div className="flex justify-between items-start border-b pb-3">
                             <div>
                                 <h3 className="font-bold text-lg text-stone-900">{TERMOS_DE_USO.titulo}</h3>
-                                <p className="text-xs text-stone-400 mt-0.5">{TERMOS_DE_USO.subtitulo}</p>
+                                <p className="text-xs text-stone-500 mt-0.5">{TERMOS_DE_USO.subtitulo}</p>
                             </div>
-                            <button onClick={onClose} className="text-stone-400 hover:text-stone-600 flex-shrink-0"><i className="fa-solid fa-xmark text-lg"></i></button>
+                            <button onClick={onClose} aria-label="Fechar" className="text-stone-500 hover:text-stone-600 flex-shrink-0"><i className="fa-solid fa-xmark text-lg"></i></button>
                         </div>
                         <div className="space-y-4 text-sm text-stone-700">
                             {TERMOS_DE_USO.secoes.map((s, i) => (
@@ -934,7 +965,7 @@
                                 {modo === 'criar' && passoCadastro === 'nome' && (
                                     <div>
                                         <label className="block text-sm font-semibold text-stone-800 mb-1">Como podemos te chamar?</label>
-                                        <p className="text-xs text-stone-400 mb-2">Não precisa ser o nome completo — é só pra te chamar pelo nome nas telas e no assistente de IA.</p>
+                                        <p className="text-xs text-stone-500 mb-2">Não precisa ser o nome completo — é só pra te chamar pelo nome nas telas e no assistente de IA.</p>
                                         <input
                                             autoFocus
                                             required
@@ -950,7 +981,7 @@
                                 {modo === 'criar' && passoCadastro === 'oab' && (
                                     <div>
                                         <label className="block text-sm font-semibold text-stone-800 mb-1">Qual sua OAB?</label>
-                                        <p className="text-xs text-stone-400 mb-2">Opcional — pode deixar em branco e preencher depois em Configurações.</p>
+                                        <p className="text-xs text-stone-500 mb-2">Opcional — pode deixar em branco e preencher depois em Configurações.</p>
                                         <input
                                             autoFocus
                                             type="text"
@@ -993,7 +1024,7 @@
                                     <>
                                         <div>
                                             <label className="block text-sm font-semibold text-stone-800 mb-1">Agora seu e-mail e senha</label>
-                                            <p className="text-xs text-stone-400 mb-2">Prazer, {nome.trim() || 'advogado(a)'}! Só falta isso pra criar sua conta.</p>
+                                            <p className="text-xs text-stone-500 mb-2">Prazer, {nome.trim() || 'advogado(a)'}! Só falta isso pra criar sua conta.</p>
                                             <input
                                                 autoFocus
                                                 required
@@ -1037,7 +1068,7 @@
                                 <>
                                     <div className="flex items-center gap-3">
                                         <div className="flex-1 h-px bg-stone-200"></div>
-                                        <span className="text-[11px] text-stone-400 font-medium">ou</span>
+                                        <span className="text-[11px] text-stone-500 font-medium">ou</span>
                                         <div className="flex-1 h-px bg-stone-200"></div>
                                     </div>
                                     <button
@@ -1053,18 +1084,18 @@
                             {modo === 'criar' && passoCadastro !== 'nome' && (
                                 <button
                                     onClick={() => { setMensagem(null); setPassoCadastro(passoCadastro === 'credenciais' ? 'oab' : 'nome'); }}
-                                    className="w-full text-center text-xs text-stone-400 hover:text-stone-600"
+                                    className="w-full text-center text-xs text-stone-500 hover:text-stone-600"
                                 >
                                     <i className="fa-solid fa-arrow-left mr-1"></i> Voltar
                                 </button>
                             )}
                             {modo === 'entrar' && (
-                                <button onClick={() => { setModo('recuperar'); setMensagem(null); }} className="w-full text-center text-xs text-stone-400 hover:text-stone-600">
+                                <button onClick={() => { setModo('recuperar'); setMensagem(null); }} className="w-full text-center text-xs text-stone-500 hover:text-stone-600">
                                     Esqueci minha senha
                                 </button>
                             )}
                             {modo === 'recuperar' && (
-                                <button onClick={() => { setModo('entrar'); setMensagem(null); }} className="w-full text-center text-xs text-stone-400 hover:text-stone-600">
+                                <button onClick={() => { setModo('entrar'); setMensagem(null); }} className="w-full text-center text-xs text-stone-500 hover:text-stone-600">
                                     <i className="fa-solid fa-arrow-left mr-1"></i> Voltar para o login
                                 </button>
                             )}
@@ -1144,7 +1175,7 @@
                             <button
                                 type="button"
                                 onClick={() => supabaseClient.auth.signOut()}
-                                className="w-full text-center text-xs text-stone-400 hover:text-stone-600"
+                                className="w-full text-center text-xs text-stone-500 hover:text-stone-600"
                             >
                                 Sair e entrar com outra conta
                             </button>
@@ -1226,7 +1257,7 @@
                                 ))}
                             </div>
                             <div className="flex items-center justify-between gap-3 pt-1">
-                                <button type="button" onClick={onConcluir} className="text-xs font-semibold text-stone-400 hover:text-stone-600">
+                                <button type="button" onClick={onConcluir} className="text-xs font-semibold text-stone-500 hover:text-stone-600">
                                     Pular tutorial
                                 </button>
                                 <button
@@ -1669,6 +1700,7 @@
                             </div>
                             <button
                                 onClick={() => setIsMobileMenuOpen(!isMobileMenuOpen)}
+                                aria-label={isMobileMenuOpen ? 'Fechar menu' : 'Abrir menu'}
                                 className="md:hidden text-navy-300 hover:text-white p-2"
                             >
                                 <i className={`fa-solid ${isMobileMenuOpen ? 'fa-xmark' : 'fa-bars'} text-xl`}></i>
@@ -2060,7 +2092,7 @@
                     <div className="bg-white rounded-2xl max-w-md w-full p-6 shadow-2xl space-y-4 max-h-[90vh] overflow-y-auto">
                         <div className="flex justify-between items-center border-b pb-3">
                             <h3 className="font-bold text-lg text-stone-900">Configure sua IA</h3>
-                            <button onClick={onClose} className="text-stone-400 hover:text-stone-600"><i className="fa-solid fa-xmark text-lg"></i></button>
+                            <button onClick={onClose} aria-label="Fechar" className="text-stone-500 hover:text-stone-600"><i className="fa-solid fa-xmark text-lg"></i></button>
                         </div>
                         <p className="text-xs text-stone-500">Conecte sua própria chave pra ter gerações ilimitadas. O plano gratuito (Gemini da casa, 10 gerações/mês) já funciona sem nada disso.</p>
 
@@ -2347,7 +2379,7 @@
                     </div>
                     <div className="mt-4">
                         <div className="text-2xl font-bold text-stone-900 tracking-tight">{value}</div>
-                        <p className="text-xs text-stone-400 mt-1">{subtext}</p>
+                        <p className="text-xs text-stone-500 mt-1">{subtext}</p>
                     </div>
                 </Tag>
             );
@@ -2441,7 +2473,7 @@
                     {/* Filtros e Pesquisa */}
                     <div className="flex flex-col sm:flex-row gap-3">
                         <div className="relative flex-1">
-                            <i className="fa-solid fa-magnifying-glass absolute left-3.5 top-3.5 text-stone-400"></i>
+                            <i className="fa-solid fa-magnifying-glass absolute left-3.5 top-3.5 text-stone-500"></i>
                             <input
                                 type="text"
                                 placeholder="Buscar por número CNJ, cliente ou ação..."
@@ -2511,7 +2543,7 @@
                                             <button
                                                 onClick={() => onEditProcess(proc)}
                                                 title="Editar processo"
-                                                className="w-9 h-9 flex items-center justify-center text-stone-400 hover:text-amber-600 hover:bg-amber-50 rounded-lg transition flex-shrink-0"
+                                                className="w-9 h-9 flex items-center justify-center text-stone-500 hover:text-amber-600 hover:bg-amber-50 rounded-lg transition flex-shrink-0"
                                             >
                                                 <i className="fa-solid fa-pen text-xs"></i>
                                             </button>
@@ -2554,7 +2586,7 @@
                                                             </span>
                                                         )}
                                                     </div>
-                                                    <div className="text-xs text-stone-400 font-sans">{proc.vara}</div>
+                                                    <div className="text-xs text-stone-500 font-sans">{proc.vara}</div>
                                                 </td>
                                                 <td className="py-3.5 px-4 font-medium text-stone-800">
                                                     {proc.clienteNome}
@@ -2716,7 +2748,7 @@
                                 </span>
                             )}
                         </div>
-                        <p className="text-xs text-stone-400 mt-3 border-t border-stone-100 pt-3">
+                        <p className="text-xs text-stone-500 mt-3 border-t border-stone-100 pt-3">
                             Esta busca consulta o <strong>DJEN</strong> (Diário de Justiça Eletrônico Nacional, mantido pelo CNJ),
                             que reúne as publicações/intimações de todos os tribunais — incluindo o TJRJ — pesquisáveis por número
                             de OAB, sem exigir convênio. Não é a "capa" completa do processo (para isso seria necessário o MNI, via
@@ -2803,7 +2835,7 @@
                                                 <td className="p-3 text-stone-800">{proc.poloAtivo}</td>
                                                 <td className="p-3 text-stone-600">
                                                     {proc.classe}
-                                                    {proc.assunto && <div className="text-xs text-stone-400">{proc.assunto}</div>}
+                                                    {proc.assunto && <div className="text-xs text-stone-500">{proc.assunto}</div>}
                                                 </td>
                                                 <td className="p-3 text-stone-600 text-xs">{proc.orgaoJulgador}</td>
                                             </tr>
@@ -2879,7 +2911,7 @@
                                     </div>
                                     <div className="space-y-3">
                                         {itens.length === 0 && (
-                                            <p className="text-xs text-stone-400 text-center py-6">Nenhum processo aqui.</p>
+                                            <p className="text-xs text-stone-500 text-center py-6">Nenhum processo aqui.</p>
                                         )}
                                         {itens.map(proc => (
                                             <div
@@ -2906,7 +2938,7 @@
                                                     <button
                                                         onClick={() => onEditProcess(proc)}
                                                         title="Editar processo"
-                                                        className="text-xs px-2 py-1 rounded text-stone-400 hover:text-amber-600 hover:bg-amber-50"
+                                                        className="text-xs px-2 py-1 rounded text-stone-500 hover:text-amber-600 hover:bg-amber-50"
                                                     >
                                                         <i className="fa-solid fa-pen"></i>
                                                     </button>
@@ -2914,6 +2946,7 @@
                                                         <button
                                                             disabled={colIdx === 0}
                                                             onClick={() => moverPara(proc.id, COLUNAS_KANBAN[colIdx - 1].id)}
+                                                            aria-label={colIdx > 0 ? `Mover para ${COLUNAS_KANBAN[colIdx - 1].label}` : 'Mover para a coluna anterior'}
                                                             className="text-xs px-2 py-1 rounded bg-stone-50 hover:bg-stone-100 text-stone-600 disabled:opacity-30 disabled:cursor-not-allowed"
                                                         >
                                                             <i className="fa-solid fa-arrow-left"></i>
@@ -2921,6 +2954,7 @@
                                                         <button
                                                             disabled={colIdx === COLUNAS_KANBAN.length - 1}
                                                             onClick={() => moverPara(proc.id, COLUNAS_KANBAN[colIdx + 1].id)}
+                                                            aria-label={colIdx < COLUNAS_KANBAN.length - 1 ? `Mover para ${COLUNAS_KANBAN[colIdx + 1].label}` : 'Mover para a próxima coluna'}
                                                             className="text-xs px-2 py-1 rounded bg-stone-50 hover:bg-stone-100 text-stone-600 disabled:opacity-30 disabled:cursor-not-allowed"
                                                         >
                                                             <i className="fa-solid fa-arrow-right"></i>
@@ -3029,11 +3063,11 @@
                     <div className="bg-white rounded-2xl shadow-sm border border-stone-200 p-5">
                         <h3 className="text-sm font-bold text-stone-700 mb-3">OABs monitoradas</h3>
                         <div className="flex flex-wrap gap-2 mb-4">
-                            {oabsMonitoradas.length === 0 && <p className="text-xs text-stone-400">Nenhuma OAB cadastrada ainda.</p>}
+                            {oabsMonitoradas.length === 0 && <p className="text-xs text-stone-500">Nenhuma OAB cadastrada ainda.</p>}
                             {oabsMonitoradas.map(o => (
                                 <span key={o.id} className="inline-flex items-center gap-2 px-3 py-1.5 bg-stone-100 text-stone-700 rounded-full text-xs font-medium">
                                     {o.label}
-                                    <button onClick={() => onRemoveOab(o.id)} className="text-stone-400 hover:text-rose-600"><i className="fa-solid fa-xmark"></i></button>
+                                    <button onClick={() => onRemoveOab(o.id)} aria-label={`Remover OAB ${o.label}`} className="text-stone-500 hover:text-rose-600"><i className="fa-solid fa-xmark"></i></button>
                                 </span>
                             ))}
                         </div>
@@ -3073,7 +3107,7 @@
 
                     <div className="space-y-3">
                         {alertasFiltrados.length === 0 && (
-                            <div className="bg-white p-10 rounded-2xl border border-stone-200 text-center text-stone-400">
+                            <div className="bg-white p-10 rounded-2xl border border-stone-200 text-center text-stone-500">
                                 <i className="fa-solid fa-inbox text-3xl mb-3"></i>
                                 <p>Nenhum alerta {filtro !== 'todos' ? `"${FILTROS_ALERTA.find(f => f.id === filtro)?.label.toLowerCase()}"` : ''} no momento.</p>
                             </div>
@@ -3087,15 +3121,15 @@
                                             <span className={`text-[10px] font-bold px-2 py-0.5 rounded uppercase ${a.status === 'nao_tratada' ? 'bg-amber-100 text-amber-700' : a.status === 'tratada' ? 'bg-emerald-100 text-emerald-700' : 'bg-stone-100 text-stone-500'}`}>
                                                 {a.status.replace('_', ' ')}
                                             </span>
-                                            <span className="text-xs text-stone-400 font-mono">{a.numero}</span>
-                                            {a.oabOrigem && <span className="text-xs text-stone-400">• {a.oabOrigem}</span>}
+                                            <span className="text-xs text-stone-500 font-mono">{a.numero}</span>
+                                            {a.oabOrigem && <span className="text-xs text-stone-500">• {a.oabOrigem}</span>}
                                         </div>
                                         <p className="text-sm text-stone-800 font-medium">{a.poloAtivo}</p>
                                         <p className={`text-xs text-stone-500 ${expandido === a.id ? '' : 'line-clamp-2'}`}>{a.texto}</p>
                                         <button onClick={() => setExpandido(expandido === a.id ? null : a.id)} className="text-xs text-indigo-600 hover:underline">
                                             {expandido === a.id ? 'Ver menos' : 'Ver mais'}
                                         </button>
-                                        <p className="text-xs text-stone-400">{a.orgaoJulgador} {a.data ? `• ${new Date(a.data + 'T00:00:00').toLocaleDateString('pt-BR')}` : ''}</p>
+                                        <p className="text-xs text-stone-500">{a.orgaoJulgador} {a.data ? `• ${new Date(a.data + 'T00:00:00').toLocaleDateString('pt-BR')}` : ''}</p>
                                     </div>
                                     <div className="flex flex-col gap-2 items-end">
                                         {a.status === 'nao_tratada' && (
@@ -3147,7 +3181,7 @@
                     </div>
 
                     <div className="relative">
-                        <i className="fa-solid fa-magnifying-glass absolute left-3.5 top-3.5 text-stone-400"></i>
+                        <i className="fa-solid fa-magnifying-glass absolute left-3.5 top-3.5 text-stone-500"></i>
                         <input
                             type="text"
                             placeholder="Buscar cliente por nome, CPF/CNPJ ou e-mail..."
@@ -3172,20 +3206,20 @@
                                                 <button
                                                     onClick={() => onEditClient(client)}
                                                     title="Editar cliente"
-                                                    className="w-7 h-7 flex items-center justify-center text-stone-400 hover:text-amber-600 hover:bg-amber-50 rounded-lg transition"
+                                                    className="w-7 h-7 flex items-center justify-center text-stone-500 hover:text-amber-600 hover:bg-amber-50 rounded-lg transition"
                                                 >
                                                     <i className="fa-solid fa-pen text-xs"></i>
                                                 </button>
                                                 <button
                                                     onClick={() => onDeleteClient(client.id)}
                                                     title="Excluir cliente"
-                                                    className="w-7 h-7 flex items-center justify-center text-stone-400 hover:text-rose-600 hover:bg-rose-50 rounded-lg transition"
+                                                    className="w-7 h-7 flex items-center justify-center text-stone-500 hover:text-rose-600 hover:bg-rose-50 rounded-lg transition"
                                                 >
                                                     <i className="fa-solid fa-trash text-xs"></i>
                                                 </button>
                                             </div>
                                         </div>
-                                        <span className="text-xs text-stone-400 whitespace-nowrap block">Desde {client.dataCadastro}</span>
+                                        <span className="text-xs text-stone-500 whitespace-nowrap block">Desde {client.dataCadastro}</span>
                                         {client.origem === 'importado' && !client.documento && (
                                             <span className="inline-block px-2 py-0.5 text-[10px] font-bold rounded bg-amber-50 text-amber-700">
                                                 <i className="fa-solid fa-pen mr-1"></i>Extraído automaticamente — revise os dados
@@ -3197,13 +3231,13 @@
 
                                     <div className="space-y-1.5 text-xs text-stone-600 border-t border-stone-100 pt-3">
                                         <p className="flex items-center gap-2">
-                                            <i className="fa-solid fa-envelope w-4 text-stone-400"></i> {client.email}
+                                            <i className="fa-solid fa-envelope w-4 text-stone-500"></i> {client.email}
                                         </p>
                                         <p className="flex items-center gap-2">
-                                            <i className="fa-solid fa-phone w-4 text-stone-400"></i> {client.telefone}
+                                            <i className="fa-solid fa-phone w-4 text-stone-500"></i> {client.telefone}
                                         </p>
                                         <p className="flex items-center gap-2">
-                                            <i className="fa-solid fa-location-dot w-4 text-stone-400"></i> {client.cidade}/{client.uf}
+                                            <i className="fa-solid fa-location-dot w-4 text-stone-500"></i> {client.cidade}/{client.uf}
                                         </p>
                                     </div>
 
@@ -3243,7 +3277,7 @@
                                             <span className="px-2.5 py-0.5 bg-rose-50 text-rose-700 text-xs font-bold rounded-md">
                                                 Prazo Processual
                                             </span>
-                                            <span className="text-xs text-stone-400 font-mono">{proc.numero}</span>
+                                            <span className="text-xs text-stone-500 font-mono">{proc.numero}</span>
                                         </div>
                                         <h3 className="font-bold text-stone-900 text-base">{proc.descricaoPrazo}</h3>
                                         <p className="text-xs text-stone-500">
@@ -3252,7 +3286,7 @@
                                     </div>
                                     <div className="flex items-center gap-3 w-full md:w-auto justify-between md:justify-end border-t md:border-t-0 pt-3 md:pt-0">
                                         <div className="text-left md:text-right">
-                                            <span className="block text-xs text-stone-400">Data Fatal</span>
+                                            <span className="block text-xs text-stone-500">Data Fatal</span>
                                             <span className="text-sm font-bold text-rose-600">
                                                 {new Date(proc.proximoPrazo + 'T00:00:00').toLocaleDateString('pt-BR')}
                                             </span>
@@ -3299,19 +3333,19 @@
 
                     <div className="grid grid-cols-1 sm:grid-cols-3 gap-5">
                         <div className="bg-white p-5 rounded-2xl border border-stone-200 shadow-sm">
-                            <span className="text-xs font-semibold text-stone-400 uppercase">Recebido no Mês</span>
+                            <span className="text-xs font-semibold text-stone-500 uppercase">Recebido no Mês</span>
                             <div className="text-2xl font-bold text-emerald-600 mt-1">
                                 R$ {totalRecebido.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
                             </div>
                         </div>
                         <div className="bg-white p-5 rounded-2xl border border-stone-200 shadow-sm">
-                            <span className="text-xs font-semibold text-stone-400 uppercase">Pendente / A Receber</span>
+                            <span className="text-xs font-semibold text-stone-500 uppercase">Pendente / A Receber</span>
                             <div className="text-2xl font-bold text-amber-600 mt-1">
                                 R$ {totalAbonoPendente.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
                             </div>
                         </div>
                         <div className="bg-white p-5 rounded-2xl border border-stone-200 shadow-sm">
-                            <span className="text-xs font-semibold text-stone-400 uppercase">Despesas Processuais</span>
+                            <span className="text-xs font-semibold text-stone-500 uppercase">Despesas Processuais</span>
                             <div className="text-2xl font-bold text-rose-600 mt-1">
                                 R$ {totalDespesas.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
                             </div>
@@ -3412,14 +3446,14 @@
                     <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
                         <div className="bg-white rounded-2xl shadow-sm border border-stone-200 p-6">
                             <h3 className="font-bold text-stone-900 mb-1">Movimentação de processos</h3>
-                            <p className="text-xs text-stone-400 mb-4">Cadastrados/atualizados nos últimos 30 dias (aproximação local).</p>
+                            <p className="text-xs text-stone-500 mb-4">Cadastrados/atualizados nos últimos 30 dias (aproximação local).</p>
                             <div className="flex gap-8">
                                 <div>
                                     <div className="text-3xl font-extrabold text-indigo-600">{comMovimentacao.length}</div>
                                     <div className="text-xs text-stone-500">Com movimentação</div>
                                 </div>
                                 <div>
-                                    <div className="text-3xl font-extrabold text-stone-400">{semMovimentacao}</div>
+                                    <div className="text-3xl font-extrabold text-stone-500">{semMovimentacao}</div>
                                     <div className="text-xs text-stone-500">Sem movimentação</div>
                                 </div>
                             </div>
@@ -3427,7 +3461,7 @@
 
                         <div className="bg-white rounded-2xl shadow-sm border border-stone-200 p-6">
                             <h3 className="font-bold text-stone-900 mb-1">Processos por etapa (Kanban)</h3>
-                            <p className="text-xs text-stone-400 mb-4">Distribuição atual do fluxo de trabalho.</p>
+                            <p className="text-xs text-stone-500 mb-4">Distribuição atual do fluxo de trabalho.</p>
                             <div className="space-y-3">
                                 {porKanban.map(c => (
                                     <div key={c.id}>
@@ -3451,7 +3485,7 @@
                                 <div key={m.chave} className="flex-1 flex flex-col items-center justify-end h-full gap-2">
                                     <span className="text-xs font-bold text-stone-700">{m.total}</span>
                                     <div className="w-full bg-amber-400 rounded-t-md" style={{ height: `${(m.total / maxMes) * 100}%`, minHeight: m.total > 0 ? '4px' : '0' }}></div>
-                                    <span className="text-xs text-stone-400 capitalize">{m.label}</span>
+                                    <span className="text-xs text-stone-500 capitalize">{m.label}</span>
                                 </div>
                             ))}
                         </div>
@@ -3575,7 +3609,7 @@
                     <div className="bg-white rounded-2xl max-w-2xl w-full p-6 shadow-2xl space-y-4 max-h-[90vh] overflow-y-auto">
                         <div className="flex justify-between items-center border-b pb-3">
                             <h3 className="font-bold text-lg text-stone-900">{modelo ? 'Editar Modelo' : 'Novo Modelo de Documento'}</h3>
-                            <button onClick={onClose} className="text-stone-400 hover:text-stone-600"><i className="fa-solid fa-xmark text-lg"></i></button>
+                            <button onClick={onClose} aria-label="Fechar" className="text-stone-500 hover:text-stone-600"><i className="fa-solid fa-xmark text-lg"></i></button>
                         </div>
                         <p className="text-xs text-stone-500">
                             Use placeholders como <code className="bg-stone-100 px-1 rounded">{'{{cliente.nome}}'}</code>, <code className="bg-stone-100 px-1 rounded">{'{{processo.numero}}'}</code>, <code className="bg-stone-100 px-1 rounded">{'{{advogado.nome}}'}</code>, <code className="bg-stone-100 px-1 rounded">{'{{advogado.oab}}'}</code>, <code className="bg-stone-100 px-1 rounded">{'{{data}}'}</code> — são preenchidos automaticamente na hora de gerar.
@@ -3587,7 +3621,7 @@
                             <div className="p-3 bg-stone-50 border border-stone-200 rounded-xl space-y-2">
                                 <label className="block text-xs font-semibold text-stone-600">Importar arquivo (.docx ou .txt)</label>
                                 <input type="file" accept=".docx,.txt" onChange={importarArquivo} disabled={importando} className="text-xs w-full" />
-                                {importando && <p className="text-[11px] text-stone-400"><i className="fa-solid fa-spinner fa-spin mr-1"></i>Lendo arquivo...</p>}
+                                {importando && <p className="text-[11px] text-stone-500"><i className="fa-solid fa-spinner fa-spin mr-1"></i>Lendo arquivo...</p>}
                             </div>
                             <div className="p-3 bg-stone-50 border border-stone-200 rounded-xl space-y-2">
                                 <label className="block text-xs font-semibold text-stone-600">Criar com IA</label>
@@ -3832,7 +3866,7 @@ OAB nº ${advogadoOab}`;
                                     )}
                                 </select>
                                 {modeloProprioSelecionado && (
-                                    <button type="button" onClick={() => { setEditandoModelo(modeloProprioSelecionado); setGerenciarModelos(true); }} className="text-[11px] text-stone-400 hover:text-indigo-600 mt-1">
+                                    <button type="button" onClick={() => { setEditandoModelo(modeloProprioSelecionado); setGerenciarModelos(true); }} className="text-[11px] text-stone-500 hover:text-indigo-600 mt-1">
                                         <i className="fa-solid fa-pen mr-1"></i>Editar este modelo
                                     </button>
                                 )}
@@ -4455,7 +4489,7 @@ OAB nº ${advogadoOab}`;
                     </button>
                     {aberto && (
                         <div className="absolute right-0 top-9 z-20 w-80 bg-white rounded-xl shadow-2xl border border-stone-200 p-3 space-y-2.5">
-                            <p className="text-[11px] text-stone-400">
+                            <p className="text-[11px] text-stone-500">
                                 {editor.state.selection.from !== editor.state.selection.to
                                     ? 'Vai usar o trecho selecionado.'
                                     : 'Nada selecionado — vai considerar o documento inteiro.'}
@@ -4489,6 +4523,7 @@ OAB nº ${advogadoOab}`;
                                         <button
                                             type="button"
                                             onClick={() => { navigator.clipboard?.writeText(resposta.texto); }}
+                                            aria-label="Copiar resposta"
                                             className="px-2.5 py-1.5 bg-stone-100 hover:bg-stone-200 text-stone-600 rounded-lg text-[11px]"
                                         >
                                             <i className="fa-solid fa-copy"></i>
@@ -4518,7 +4553,7 @@ OAB nº ${advogadoOab}`;
                     {quebras.map(({ pagina, topo }) => (
                         <div key={pagina} className="absolute inset-x-0 flex items-center px-2" style={{ top: topo }}>
                             <div className="flex-1 border-t border-dashed border-stone-300"></div>
-                            <span className="mx-2 px-1.5 py-0.5 bg-stone-100 text-stone-400 text-[9px] font-semibold rounded whitespace-nowrap">
+                            <span className="mx-2 px-1.5 py-0.5 bg-stone-100 text-stone-500 text-[9px] font-semibold rounded whitespace-nowrap">
                                 Fim da página {pagina} (aproximado)
                             </span>
                             <div className="flex-1 border-t border-dashed border-stone-300"></div>
@@ -4605,7 +4640,7 @@ OAB nº ${advogadoOab}`;
                             extra={
                                 <>
                                     {Math.ceil(alturaConteudo / ALTURA_PAGINA_A4_PX) > 1 && (
-                                        <span title="Estimativa — a paginação real de verdade só sai na impressão/PDF" className="ml-auto flex items-center gap-1 text-[11px] text-stone-400 font-medium whitespace-nowrap">
+                                        <span title="Estimativa — a paginação real de verdade só sai na impressão/PDF" className="ml-auto flex items-center gap-1 text-[11px] text-stone-500 font-medium whitespace-nowrap">
                                             <i className="fa-solid fa-file-lines"></i> ~{Math.max(1, Math.ceil(alturaConteudo / ALTURA_PAGINA_A4_PX))} páginas
                                         </span>
                                     )}
@@ -4615,7 +4650,7 @@ OAB nº ${advogadoOab}`;
                             configDocumento={configDocumento}
                         />
                     ) : (
-                        <div className="p-1.5 border-b border-stone-200 bg-stone-50 text-[11px] text-stone-400 flex items-center gap-2">
+                        <div className="p-1.5 border-b border-stone-200 bg-stone-50 text-[11px] text-stone-500 flex items-center gap-2">
                             <i className="fa-solid fa-spinner fa-spin"></i> Carregando editor...
                         </div>
                     )}
@@ -4668,7 +4703,7 @@ OAB nº ${advogadoOab}`;
                         supabaseClient={supabaseClient}
                         configDocumento={configDocumento}
                     />
-                    <p className={`${larguraAviso} mx-auto text-[11px] text-stone-400 flex items-center gap-1.5`}>
+                    <p className={`${larguraAviso} mx-auto text-[11px] text-stone-500 flex items-center gap-1.5`}>
                         <i className="fa-solid fa-pen"></i> Use a barra acima ou clique com o botão direito pra formatar — negrito, títulos, listas, tabela, marca-texto, citação e caixas de destaque (atenção, prazo, importante, definição).
                         {editado && <span className="text-emerald-600 font-semibold">Editado manualmente.</span>}
                     </p>
@@ -4721,10 +4756,10 @@ OAB nº ${advogadoOab}`;
                         <i className="fa-solid fa-scale-balanced text-indigo-500"></i> Jurisprudência usada
                     </h3>
                     {buscando && (
-                        <p className="text-xs text-stone-400"><i className="fa-solid fa-spinner fa-spin mr-2"></i>Buscando jurisprudência relacionada...</p>
+                        <p className="text-xs text-stone-500"><i className="fa-solid fa-spinner fa-spin mr-2"></i>Buscando jurisprudência relacionada...</p>
                     )}
                     {!buscando && jurisprudencia && jurisprudencia.length === 0 && (
-                        <p className="text-xs text-stone-400">Nenhuma jurisprudência relacionada encontrada para fundamentar esta minuta.</p>
+                        <p className="text-xs text-stone-500">Nenhuma jurisprudência relacionada encontrada para fundamentar esta minuta.</p>
                     )}
                     {!buscando && jurisprudencia && jurisprudencia.length > 0 && (
                         <div className="space-y-3 max-h-[70vh] overflow-y-auto pr-1">
@@ -4827,9 +4862,9 @@ OAB nº ${advogadoOab}`;
                         <div className="flex justify-between items-center border-b border-stone-200 px-5 py-4">
                             <div>
                                 <h3 className="font-bold text-stone-900 text-sm">Layout de Página</h3>
-                                <p className="text-stone-400 text-[11px] mt-0.5">Cabeçalho, rodapé e logotipo — um modelo só, salvo pra sua conta, reaplicado em qualquer peça.</p>
+                                <p className="text-stone-500 text-[11px] mt-0.5">Cabeçalho, rodapé e logotipo — um modelo só, salvo pra sua conta, reaplicado em qualquer peça.</p>
                             </div>
-                            <button onClick={onClose} className="text-stone-400 hover:text-stone-600"><i className="fa-solid fa-xmark text-lg"></i></button>
+                            <button onClick={onClose} aria-label="Fechar" className="text-stone-500 hover:text-stone-600"><i className="fa-solid fa-xmark text-lg"></i></button>
                         </div>
 
                         <div className="flex gap-1 px-5 pt-3 border-b border-stone-200">
@@ -4885,7 +4920,7 @@ OAB nº ${advogadoOab}`;
                                             <button onClick={removerLogo} className="text-xs font-semibold text-rose-600 hover:text-rose-800">Remover</button>
                                         </div>
                                     ) : (
-                                        <p className="text-xs text-stone-400">Nenhum logotipo enviado ainda.</p>
+                                        <p className="text-xs text-stone-500">Nenhum logotipo enviado ainda.</p>
                                     )}
                                     <div>
                                         <label className="inline-flex items-center gap-2 px-3 py-2 bg-stone-100 hover:bg-stone-200 text-stone-700 rounded-xl text-xs font-semibold cursor-pointer">
@@ -4894,7 +4929,7 @@ OAB nº ${advogadoOab}`;
                                             <input type="file" accept="image/*" onChange={enviarLogo} disabled={enviandoLogo} className="hidden" />
                                         </label>
                                     </div>
-                                    <p className="text-[11px] text-stone-400">Fica guardado de forma privada, só a sua conta acessa.</p>
+                                    <p className="text-[11px] text-stone-500">Fica guardado de forma privada, só a sua conta acessa.</p>
                                 </div>
                             )}
                         </div>
@@ -5273,7 +5308,7 @@ OAB nº ${advogadoOab}`;
                                     <datalist id="jc-lista-tribunais-pecas">
                                         {LISTA_TRIBUNAIS_BR.map(t => <option key={t} value={t} />)}
                                     </datalist>
-                                    <p className="text-[10px] text-stone-400 mt-1">Some quando um processo é selecionado — a vara dele já resolve isso.</p>
+                                    <p className="text-[10px] text-stone-500 mt-1">Some quando um processo é selecionado — a vara dele já resolve isso.</p>
                                 </div>
                             )}
 
@@ -5360,7 +5395,7 @@ OAB nº ${advogadoOab}`;
                                 {loading && <PainelCarregandoPeca etapa={etapa} />}
                                 {!loading && !resultado && (
                                     <div className="h-full flex items-center justify-center">
-                                        <p className="text-sm text-stone-400 font-sans">Preencha os parâmetros ao lado e clique em "Gerar com IA".</p>
+                                        <p className="text-sm text-stone-500 font-sans">Preencha os parâmetros ao lado e clique em "Gerar com IA".</p>
                                     </div>
                                 )}
                                 {!loading && resultado && (
@@ -5525,7 +5560,7 @@ OAB nº ${advogadoOab}`;
                                     className="w-40 h-40 mx-auto bg-white p-2 rounded-lg border border-stone-200"
                                 />
                             )}
-                            <p className="text-[11px] text-stone-400 text-center font-mono break-all">{matriculando.secret}</p>
+                            <p className="text-[11px] text-stone-500 text-center font-mono break-all">{matriculando.secret}</p>
                             <form onSubmit={confirmarMatricula} className="flex gap-2">
                                 <input
                                     autoFocus
@@ -5735,7 +5770,7 @@ OAB nº ${advogadoOab}`;
                         {tipo === 'avaliacao' && (
                             <div className="flex items-center gap-1">
                                 {[1, 2, 3, 4, 5].map(n => (
-                                    <button key={n} type="button" onClick={() => setNota(n)} className="text-xl leading-none">
+                                    <button key={n} type="button" onClick={() => setNota(n)} aria-label={`Avaliar com ${n} estrela${n > 1 ? 's' : ''}`} className="text-xl leading-none">
                                         <i className={`fa-solid fa-star ${n <= nota ? 'text-amber-500' : 'text-stone-200'}`}></i>
                                     </button>
                                 ))}
@@ -5761,12 +5796,12 @@ OAB nº ${advogadoOab}`;
 
                     {enviados && enviados.length > 0 && (
                         <div className="pt-3 border-t border-stone-200 space-y-2">
-                            <p className="text-[11px] font-bold text-stone-400 uppercase">Já enviados</p>
+                            <p className="text-[11px] font-bold text-stone-500 uppercase">Já enviados</p>
                             {enviados.map(f => (
                                 <div key={f.id} className="p-2.5 bg-stone-50 rounded-lg text-xs text-stone-600">
                                     <span className="font-semibold text-stone-800">{ROTULOS_TIPO[f.tipo]}</span>
                                     {f.nota && <span className="text-amber-500 ml-1">{'★'.repeat(f.nota)}</span>}
-                                    <span className="text-stone-400 ml-2">{new Date(f.criado_em).toLocaleDateString('pt-BR')}</span>
+                                    <span className="text-stone-500 ml-2">{new Date(f.criado_em).toLocaleDateString('pt-BR')}</span>
                                     <p className="mt-0.5">{f.mensagem}</p>
                                 </div>
                             ))}
@@ -5807,15 +5842,15 @@ OAB nº ${advogadoOab}`;
                         )}
                     </h4>
 
-                    {feedback === null && <p className="text-xs text-stone-400"><i className="fa-solid fa-spinner fa-spin mr-2"></i>Carregando...</p>}
-                    {feedback && feedback.length === 0 && <p className="text-xs text-stone-400">Nenhum feedback recebido ainda.</p>}
+                    {feedback === null && <p className="text-xs text-stone-500"><i className="fa-solid fa-spinner fa-spin mr-2"></i>Carregando...</p>}
+                    {feedback && feedback.length === 0 && <p className="text-xs text-stone-500">Nenhum feedback recebido ainda.</p>}
 
                     <div className="space-y-2 max-h-96 overflow-y-auto">
                         {(feedback || []).map(f => (
                             <div key={f.id} className={`p-3 rounded-xl text-xs border ${f.lido ? 'bg-stone-50 border-stone-200' : 'bg-indigo-50 border-indigo-200'}`}>
                                 <div className="flex items-center justify-between gap-2">
                                     <span className="font-bold text-stone-800">{ROTULOS_TIPO[f.tipo]}{f.nota ? ` — ${'★'.repeat(f.nota)}` : ''}</span>
-                                    <span className="text-stone-400">{new Date(f.criado_em).toLocaleString('pt-BR')}</span>
+                                    <span className="text-stone-500">{new Date(f.criado_em).toLocaleString('pt-BR')}</span>
                                 </div>
                                 <p className="text-stone-500 mt-0.5">{f.autor_nome || 'Sem nome'}</p>
                                 <p className="mt-1.5 text-stone-700">{f.mensagem}</p>
@@ -5859,14 +5894,14 @@ OAB nº ${advogadoOab}`;
                         <i className="fa-solid fa-circle text-emerald-500 text-[8px]"></i> Quem está online agora
                         <span className="text-[10px] font-bold px-1.5 py-0.5 rounded-full bg-stone-100 text-stone-500">{online.length}</span>
                     </h4>
-                    {online.length === 0 && <p className="text-xs text-stone-400">Ninguém com o app aberto agora (além de você, se a conexão ainda não sincronizou).</p>}
+                    {online.length === 0 && <p className="text-xs text-stone-500">Ninguém com o app aberto agora (além de você, se a conexão ainda não sincronizou).</p>}
                     <div className="space-y-2">
                         {online.map((p, i) => (
                             <div key={i} className="flex items-center gap-2.5 p-2.5 bg-stone-50 rounded-lg text-xs">
                                 <span className="w-2 h-2 rounded-full bg-emerald-500 flex-shrink-0"></span>
                                 <span className="font-semibold text-stone-800">{p.nome || p.email || 'Sem nome'}</span>
-                                {p.nome && <span className="text-stone-400">{p.email}</span>}
-                                <span className="text-stone-400 ml-auto">desde {p.entrouEm ? new Date(p.entrouEm).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' }) : '—'}</span>
+                                {p.nome && <span className="text-stone-500">{p.email}</span>}
+                                <span className="text-stone-500 ml-auto">desde {p.entrouEm ? new Date(p.entrouEm).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' }) : '—'}</span>
                             </div>
                         ))}
                     </div>
@@ -5894,15 +5929,15 @@ OAB nº ${advogadoOab}`;
                 <div className="bg-white rounded-2xl border border-stone-200 shadow-sm p-5 space-y-3">
                     <h4 className="font-bold text-stone-900 text-sm flex items-center gap-2">
                         <i className="fa-solid fa-right-to-bracket text-indigo-500"></i> Histórico de acessos
-                        <span className="text-[10px] font-normal text-stone-400">(últimos 100)</span>
+                        <span className="text-[10px] font-normal text-stone-500">(últimos 100)</span>
                     </h4>
-                    {acessos === null && <p className="text-xs text-stone-400"><i className="fa-solid fa-spinner fa-spin mr-2"></i>Carregando...</p>}
-                    {acessos && acessos.length === 0 && <p className="text-xs text-stone-400">Nenhum acesso registrado ainda.</p>}
+                    {acessos === null && <p className="text-xs text-stone-500"><i className="fa-solid fa-spinner fa-spin mr-2"></i>Carregando...</p>}
+                    {acessos && acessos.length === 0 && <p className="text-xs text-stone-500">Nenhum acesso registrado ainda.</p>}
                     <div className="space-y-1.5 max-h-96 overflow-y-auto">
                         {(acessos || []).map(a => (
                             <div key={a.id} className="flex items-center justify-between gap-2 p-2 bg-stone-50 rounded-lg text-xs">
                                 <span className="font-semibold text-stone-800">{a.nome || a.email}</span>
-                                <span className="text-stone-400">{new Date(a.criado_em).toLocaleString('pt-BR')}</span>
+                                <span className="text-stone-500">{new Date(a.criado_em).toLocaleString('pt-BR')}</span>
                             </div>
                         ))}
                     </div>
@@ -6000,7 +6035,7 @@ OAB nº ${advogadoOab}`;
                                 <input type="text" value={oabPerfil} onChange={e => setOabPerfil(e.target.value)} placeholder="172090/RJ" className="w-full p-2.5 bg-stone-50 border border-stone-200 rounded-xl text-sm" />
                             </div>
                             <div className="md:col-span-2 flex items-center justify-between pt-1">
-                                <span className="text-xs text-stone-400">{session?.user?.email}</span>
+                                <span className="text-xs text-stone-500">{session?.user?.email}</span>
                                 <div className="flex gap-2">
                                     <button type="submit" disabled={salvandoPerfil} className="px-4 py-2 bg-amber-500 hover:bg-amber-600 text-stone-950 font-semibold rounded-xl text-sm disabled:opacity-50">
                                         {salvandoPerfil ? <i className="fa-solid fa-spinner fa-spin"></i> : 'Salvar Perfil'}
@@ -6046,10 +6081,10 @@ OAB nº ${advogadoOab}`;
                     </div>
 
                     <div className="text-center pt-2 flex items-center justify-center gap-4 flex-wrap">
-                        <button onClick={() => setMostrarConfigurarIA(true)} className="text-xs text-stone-400 hover:text-stone-600 hover:underline">
+                        <button onClick={() => setMostrarConfigurarIA(true)} className="text-xs text-stone-500 hover:text-stone-600 hover:underline">
                             <i className="fa-solid fa-circle-info mr-1"></i> Como configurar minha IA (passo a passo)
                         </button>
-                        <button onClick={() => setMostrarTermos(true)} className="text-xs text-stone-400 hover:text-stone-600 hover:underline">
+                        <button onClick={() => setMostrarTermos(true)} className="text-xs text-stone-500 hover:text-stone-600 hover:underline">
                             <i className="fa-solid fa-file-contract mr-1"></i> Termos de Uso e Política de Privacidade
                         </button>
                     </div>
@@ -6154,7 +6189,7 @@ OAB nº ${advogadoOab}`;
                                     {finalDate ? finalDate.toLocaleDateString('pt-BR', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' }) : '---'}
                                 </div>
                             </div>
-                            <div className="text-xs text-stone-400 border-t border-stone-700 pt-4 mt-6">
+                            <div className="text-xs text-stone-500 border-t border-stone-700 pt-4 mt-6">
                                 Sempre confira eventuais portarias de suspensão de expediente do Tribunal competente.
                             </div>
                         </div>
@@ -6215,7 +6250,7 @@ OAB nº ${advogadoOab}`;
                     <div className="bg-white rounded-2xl max-w-lg w-full p-6 shadow-2xl space-y-4">
                         <div className="flex justify-between items-center border-b pb-3">
                             <h3 className="font-bold text-lg text-stone-900">{isEditing ? 'Editar Cliente' : 'Novo Cliente'}</h3>
-                            <button onClick={onClose} className="text-stone-400 hover:text-stone-600"><i className="fa-solid fa-xmark text-lg"></i></button>
+                            <button onClick={onClose} aria-label="Fechar" className="text-stone-500 hover:text-stone-600"><i className="fa-solid fa-xmark text-lg"></i></button>
                         </div>
                         <form onSubmit={handleSubmit} className="space-y-3">
                             <div>
@@ -6309,7 +6344,7 @@ OAB nº ${advogadoOab}`;
                     <div className="bg-white rounded-2xl max-w-lg w-full p-6 shadow-2xl space-y-4">
                         <div className="flex justify-between items-center border-b pb-3">
                             <h3 className="font-bold text-lg text-stone-900">{isEditing ? 'Editar Processo' : 'Novo Processo'}</h3>
-                            <button onClick={onClose} className="text-stone-400 hover:text-stone-600"><i className="fa-solid fa-xmark text-lg"></i></button>
+                            <button onClick={onClose} aria-label="Fechar" className="text-stone-500 hover:text-stone-600"><i className="fa-solid fa-xmark text-lg"></i></button>
                         </div>
                         <form onSubmit={handleSubmit} className="space-y-3">
                             <div>
@@ -6425,7 +6460,7 @@ OAB nº ${advogadoOab}`;
                     <div className="bg-white rounded-2xl max-w-md w-full p-6 shadow-2xl space-y-4">
                         <div className="flex justify-between items-center border-b pb-3">
                             <h3 className="font-bold text-lg text-stone-900">{processoFixo ? `Lançamento — Processo ${processoFixo.numero}` : 'Novo Lançamento Financeiro'}</h3>
-                            <button onClick={onClose} className="text-stone-400 hover:text-stone-600"><i className="fa-solid fa-xmark text-lg"></i></button>
+                            <button onClick={onClose} aria-label="Fechar" className="text-stone-500 hover:text-stone-600"><i className="fa-solid fa-xmark text-lg"></i></button>
                         </div>
                         <form onSubmit={handleSubmit} className="space-y-3">
                             <div>
@@ -6703,7 +6738,7 @@ OAB nº ${advogadoOab}`;
 
                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
                         <div>
-                            <label className="block text-[10px] font-bold text-stone-400 uppercase mb-1">Andamento Atual</label>
+                            <label className="block text-[10px] font-bold text-stone-500 uppercase mb-1">Andamento Atual</label>
                             <textarea
                                 rows={2}
                                 value={andamento}
@@ -6713,7 +6748,7 @@ OAB nº ${advogadoOab}`;
                             />
                         </div>
                         <div>
-                            <label className="block text-[10px] font-bold text-stone-400 uppercase mb-1">Classe Judicial</label>
+                            <label className="block text-[10px] font-bold text-stone-500 uppercase mb-1">Classe Judicial</label>
                             <input
                                 value={classeJudicial}
                                 onChange={e => setClasseJudicial(e.target.value)}
@@ -6735,7 +6770,7 @@ OAB nº ${advogadoOab}`;
                                         <li key={idx} className="flex items-start justify-between gap-2 p-2 bg-stone-50 border rounded-lg text-xs">
                                             <div className="flex items-start gap-2">
                                                 <div>
-                                                    <span className="block text-stone-400">
+                                                    <span className="block text-stone-500">
                                                         {mov.data ? new Date(mov.data).toLocaleDateString('pt-BR') : 'Data não informada'}
                                                     </span>
                                                     <span className="text-stone-700">{mov.nome}</span>
@@ -6836,7 +6871,7 @@ OAB nº ${advogadoOab}`;
                     <div className="bg-white rounded-2xl max-w-lg w-full p-6 shadow-2xl space-y-4 max-h-[90vh] overflow-y-auto">
                         <div className="flex justify-between items-center border-b pb-3">
                             <h3 className="font-bold text-lg text-stone-900">{registroInicial?.id ? 'Editar Anotação' : 'Nova Anotação de Tribunal'}</h3>
-                            <button onClick={onClose} className="text-stone-400 hover:text-stone-600"><i className="fa-solid fa-xmark text-lg"></i></button>
+                            <button onClick={onClose} aria-label="Fechar" className="text-stone-500 hover:text-stone-600"><i className="fa-solid fa-xmark text-lg"></i></button>
                         </div>
                         <form onSubmit={handleSubmit} className="space-y-3">
                             <div>
@@ -6904,12 +6939,12 @@ OAB nº ${advogadoOab}`;
                     </div>
 
                     <div className="relative">
-                        <i className="fa-solid fa-magnifying-glass absolute left-3.5 top-3.5 text-stone-400"></i>
+                        <i className="fa-solid fa-magnifying-glass absolute left-3.5 top-3.5 text-stone-500"></i>
                         <input type="text" placeholder="Buscar por tribunal/comarca ou vara..." value={busca} onChange={e => setBusca(e.target.value)} className="w-full pl-10 pr-4 py-2.5 bg-white border border-stone-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-amber-500" />
                     </div>
 
                     {filtrados.length === 0 && (
-                        <div className="bg-white p-10 rounded-2xl border border-stone-200 text-center text-stone-400">
+                        <div className="bg-white p-10 rounded-2xl border border-stone-200 text-center text-stone-500">
                             <i className="fa-solid fa-landmark text-3xl mb-3"></i>
                             <p>Nenhuma anotação {busca ? 'encontrada' : 'cadastrada ainda'}.</p>
                         </div>
@@ -6924,8 +6959,8 @@ OAB nº ${advogadoOab}`;
                                         {t.vara && <p className="text-xs text-stone-500">{t.vara}</p>}
                                     </div>
                                     <div className="flex gap-1 flex-shrink-0">
-                                        <button onClick={() => { setEditando(t); setModalAberto(true); }} className="text-stone-400 hover:text-indigo-600 p-1.5"><i className="fa-solid fa-pen text-xs"></i></button>
-                                        <button onClick={() => { if (confirm('Remover esta anotação?')) onRemover(t.id); }} className="text-stone-400 hover:text-rose-600 p-1.5"><i className="fa-solid fa-trash text-xs"></i></button>
+                                        <button onClick={() => { setEditando(t); setModalAberto(true); }} aria-label={`Editar anotação de ${t.tribunal}`} className="text-stone-500 hover:text-indigo-600 p-1.5"><i className="fa-solid fa-pen text-xs"></i></button>
+                                        <button onClick={() => { if (confirm('Remover esta anotação?')) onRemover(t.id); }} aria-label={`Remover anotação de ${t.tribunal}`} className="text-stone-500 hover:text-rose-600 p-1.5"><i className="fa-solid fa-trash text-xs"></i></button>
                                     </div>
                                 </div>
                                 {t.notas && <p className="text-sm text-stone-600 whitespace-pre-line">{t.notas}</p>}
@@ -6966,7 +7001,7 @@ OAB nº ${advogadoOab}`;
                     <p className="flex items-center gap-2 flex-wrap">
                         <strong>Fase Atual:</strong>
                         <span className="px-2 py-0.5 bg-indigo-50 text-indigo-700 font-semibold rounded text-xs">{process.fase || '—'}</span>
-                        <button onClick={() => { setValor(process.fase || ''); setEditando(true); }} className="text-stone-400 hover:text-indigo-600 text-xs" title="Alterar fase">
+                        <button onClick={() => { setValor(process.fase || ''); setEditando(true); }} className="text-stone-500 hover:text-indigo-600 text-xs" title="Alterar fase">
                             <i className="fa-solid fa-pen"></i>
                         </button>
                     </p>
@@ -6977,7 +7012,7 @@ OAB nº ${advogadoOab}`;
                     <strong className="text-sm whitespace-nowrap">Fase Atual:</strong>
                     <input autoFocus value={valor} onChange={e => setValor(e.target.value)} className="flex-1 p-1.5 bg-stone-50 border border-stone-200 rounded-lg text-xs" />
                     <button onClick={() => { onUpdateProcess(process.id, { fase: valor }); setEditando(false); }} className="px-2 py-1 bg-amber-500 hover:bg-amber-600 text-stone-950 rounded text-xs font-bold whitespace-nowrap">Salvar</button>
-                    <button onClick={() => setEditando(false)} className="text-stone-400 text-xs">Cancelar</button>
+                    <button onClick={() => setEditando(false)} className="text-stone-500 text-xs">Cancelar</button>
                 </div>
             );
         }
@@ -7034,13 +7069,13 @@ OAB nº ${advogadoOab}`;
                             <i className="fa-solid fa-plus mr-1"></i> Lançamento
                         </button>
                     </div>
-                    {relacionados.length === 0 && <p className="text-xs text-stone-400">Nenhum lançamento vinculado a este processo ainda.</p>}
+                    {relacionados.length === 0 && <p className="text-xs text-stone-500">Nenhum lançamento vinculado a este processo ainda.</p>}
                     <div className="space-y-2">
                         {relacionados.map(f => (
                             <div key={f.id} className="flex items-center justify-between p-2.5 bg-stone-50 border border-stone-200 rounded-lg text-xs gap-2">
                                 <div className="min-w-0">
                                     <p className="font-semibold text-stone-800 truncate">{f.descricao}</p>
-                                    {f.vencimento && <p className="text-stone-400">{new Date(f.vencimento + 'T00:00:00').toLocaleDateString('pt-BR')}</p>}
+                                    {f.vencimento && <p className="text-stone-500">{new Date(f.vencimento + 'T00:00:00').toLocaleDateString('pt-BR')}</p>}
                                 </div>
                                 <div className="flex items-center gap-2 flex-shrink-0">
                                     <span className={`font-bold whitespace-nowrap ${f.tipo === 'receita' ? 'text-emerald-600' : 'text-rose-600'}`}>
@@ -7145,7 +7180,7 @@ OAB nº ${advogadoOab}`;
                                 <button onClick={() => onEdit(process)} className="px-3 py-1.5 bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-bold rounded-lg shadow-sm flex items-center gap-2">
                                     <i className="fa-solid fa-pen"></i> Editar
                                 </button>
-                                <button onClick={onClose} className="text-stone-400 hover:text-stone-600 p-1.5"><i className="fa-solid fa-xmark text-lg"></i></button>
+                                <button onClick={onClose} aria-label="Fechar" className="text-stone-500 hover:text-stone-600 p-1.5"><i className="fa-solid fa-xmark text-lg"></i></button>
                             </div>
                         </div>
 
@@ -7174,19 +7209,19 @@ OAB nº ${advogadoOab}`;
                                         Movimentações/Financeiro abaixo, meio a meio. */}
                                     <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 pb-5 border-b border-stone-200 text-sm text-stone-700">
                                         <div>
-                                            <span className="block text-[10px] uppercase tracking-wider text-stone-400 font-bold mb-0.5">Cliente</span>
+                                            <span className="block text-[10px] uppercase tracking-wider text-stone-500 font-bold mb-0.5">Cliente</span>
                                             {process.clienteNome}
                                         </div>
                                         <div>
-                                            <span className="block text-[10px] uppercase tracking-wider text-stone-400 font-bold mb-0.5">Vara/Tribunal</span>
+                                            <span className="block text-[10px] uppercase tracking-wider text-stone-500 font-bold mb-0.5">Vara/Tribunal</span>
                                             {process.vara}
                                         </div>
                                         <div className="sm:col-span-2 lg:col-span-1">
-                                            <span className="block text-[10px] uppercase tracking-wider text-stone-400 font-bold mb-0.5">Ação</span>
+                                            <span className="block text-[10px] uppercase tracking-wider text-stone-500 font-bold mb-0.5">Ação</span>
                                             {process.acao}
                                         </div>
                                         <div>
-                                            <span className="block text-[10px] uppercase tracking-wider text-stone-400 font-bold mb-0.5">Valor da Causa</span>
+                                            <span className="block text-[10px] uppercase tracking-wider text-stone-500 font-bold mb-0.5">Valor da Causa</span>
                                             R$ {Number(process.valorCausa).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
                                         </div>
                                         <div className="sm:col-span-2">
@@ -7194,7 +7229,7 @@ OAB nº ${advogadoOab}`;
                                         </div>
                                         {process.honorariosContratados > 0 && (
                                             <div>
-                                                <span className="block text-[10px] uppercase tracking-wider text-stone-400 font-bold mb-0.5">Honorários Contratados</span>
+                                                <span className="block text-[10px] uppercase tracking-wider text-stone-500 font-bold mb-0.5">Honorários Contratados</span>
                                                 R$ {Number(process.honorariosContratados).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
                                             </div>
                                         )}
@@ -7226,7 +7261,7 @@ OAB nº ${advogadoOab}`;
                                     <div className="flex items-center justify-between mb-3 flex-wrap gap-2">
                                         <h4 className="font-bold text-stone-900 text-sm flex items-center gap-2">
                                             <i className="fa-solid fa-scale-balanced text-indigo-500"></i> Jurisprudência Relacionada
-                                            <span className="text-[10px] font-bold text-stone-400 uppercase font-normal normal-case">— TJRJ</span>
+                                            <span className="text-[10px] font-bold text-stone-500 uppercase font-normal normal-case">— TJRJ</span>
                                         </h4>
                                         {jurisprudencia && !loadingJuris && (
                                             <span className="text-[10px] font-bold px-2 py-0.5 rounded uppercase whitespace-nowrap bg-emerald-100 text-emerald-700">
@@ -7234,7 +7269,7 @@ OAB nº ${advogadoOab}`;
                                             </span>
                                         )}
                                     </div>
-                                    <p className="text-[11px] text-stone-400 -mt-2 mb-3">
+                                    <p className="text-[11px] text-stone-500 -mt-2 mb-3">
                                         Por enquanto só o TJRJ tem fonte pública com acesso automatizado liberado —
                                         os outros tribunais saem daqui assim que houver uma fonte de dados real pra eles.
                                     </p>
@@ -7269,14 +7304,14 @@ OAB nº ${advogadoOab}`;
                                     </form>
 
                                     {loadingJuris && (
-                                        <p className="text-xs text-stone-400"><i className="fa-solid fa-spinner fa-spin mr-2"></i>Buscando jurisprudência relacionada...</p>
+                                        <p className="text-xs text-stone-500"><i className="fa-solid fa-spinner fa-spin mr-2"></i>Buscando jurisprudência relacionada...</p>
                                     )}
                                     {erroJuris && <p className="text-xs text-rose-600">{erroJuris}</p>}
                                     {jurisprudencia && jurisprudencia.mensagem && (
-                                        <p className="text-[11px] text-stone-400 mb-2">{jurisprudencia.mensagem}</p>
+                                        <p className="text-[11px] text-stone-500 mb-2">{jurisprudencia.mensagem}</p>
                                     )}
                                     {jurisprudencia && (!jurisprudencia.resultados || jurisprudencia.resultados.length === 0) && !loadingJuris && (
-                                        <p className="text-xs text-stone-400">Nenhum resultado encontrado para este assunto.</p>
+                                        <p className="text-xs text-stone-500">Nenhum resultado encontrado para este assunto.</p>
                                     )}
 
                                     <div className="grid grid-cols-1 lg:grid-cols-2 gap-3">
